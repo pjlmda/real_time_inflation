@@ -63,9 +63,27 @@ def parse_response(raw: dict) -> list[WeightRecord]:
         if raw_value is None:
             continue
         records.append(
-            WeightRecord(ecoicop2_code=code, weight_year=latest_year, weight=float(raw_value))
+            WeightRecord(
+                ecoicop2_code=to_dotted_ecoicop(code),
+                weight_year=latest_year,
+                weight=float(raw_value),
+            )
         )
     return records
+
+
+def to_dotted_ecoicop(eurostat_code: str) -> str:
+    """Eurostat's `prc_hicp_inw` API returns coicop codes in its own compact
+    form (`CP01113`, `CP0114`, aggregates like `TOT_X_TBC`) rather than
+    dotted ECOICOP v2 notation (`01.1.1.3`). Convert: first 2 digits after
+    the optional `CP` prefix are the division, every digit after that starts
+    a new dot-separated level. Non-numeric aggregate codes (TOT_X_*, CP00)
+    pass through mostly unchanged and simply won't match any seeded leaf
+    category, which is the desired behavior."""
+    digits = eurostat_code[2:] if eurostat_code.startswith("CP") else eurostat_code
+    if len(digits) < 2 or not digits.isdigit():
+        return eurostat_code
+    return ".".join([digits[:2], *digits[2:]])
 
 
 def upsert_weights(records: list[WeightRecord], supabase_client) -> None:

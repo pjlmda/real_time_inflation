@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from weights.eurostat import parse_response
+from weights.eurostat import parse_response, to_dotted_ecoicop
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -13,5 +13,18 @@ def test_parse_response_returns_only_latest_year():
 
     assert {r.weight_year for r in records} == {2024}
     by_code = {r.ecoicop2_code: r.weight for r in records}
-    assert by_code["CP01113"] == 13.1
-    assert by_code["CP01146"] == 2.3
+    assert by_code["01.1.1.3"] == 13.1
+    assert by_code["01.1.4.6"] == 2.3
+
+
+def test_to_dotted_ecoicop_converts_eurostat_compact_codes():
+    assert to_dotted_ecoicop("CP01113") == "01.1.1.3"
+    assert to_dotted_ecoicop("CP0114") == "01.1.4"
+    assert to_dotted_ecoicop("CP01146") == "01.1.4.6"
+    assert to_dotted_ecoicop("CP01116") == "01.1.1.6"
+    assert to_dotted_ecoicop("CP01153") == "01.1.5.3"
+
+
+def test_to_dotted_ecoicop_passes_through_non_numeric_aggregates():
+    assert to_dotted_ecoicop("TOT_X_TBC") == "TOT_X_TBC"
+    assert to_dotted_ecoicop("CP00") == "00"

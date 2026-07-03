@@ -1,0 +1,31 @@
+# Config-driven store registry (spec §1, §3). Only Continente is scraped in
+# the Phase 1 pilot; the others are seeded now so the schema/rollout stays
+# multi-store-ready without code changes later.
+stores:
+  - slug: continente
+    name: Continente
+    base_url: https://www.continente.pt
+    active: true
+    user_agents:
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    delay_seconds_min: 2
+    delay_seconds_max: 5
+    locale: pt-PT
+    timezone_id: Europe/Lisbon
+
+  - slug: pingo-doce
+    name: Pingo Doce
+    base_url: https://www.pingodoce.pt
+    active: false # not scraped yet — pilot is Continente-only
+
+  - slug: auchan
+    name: Auchan
+    base_url: https://www.auchan.pt
+    active: false
+
+  - slug: lidl
+    name: Lidl
+    base_url: https://www.lidl.pt
+    active: false

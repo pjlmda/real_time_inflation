@@ -1,0 +1,12 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "Leite Meio Gordo UHT Continente 1L",
+  "sku": "0123456",
+  "offers": {
+    "@type": "Offer",
+    "priceCurrency": "EUR",
+    "price": "0.79",
+    "availability": "https://schema.org/InStock"
+  }
+}

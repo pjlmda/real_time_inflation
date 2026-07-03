@@ -1,0 +1,36 @@
+name: scrape
+
+on:
+  schedule:
+    # 06:00 in Lisbon is 05:00 or 06:00 UTC depending on DST; GitHub Actions
+    # cron has no timezone support, so this fixed UTC time will drift ±1h
+    # across the DST transition. Acceptable for a daily job with no hard
+    # latency requirement — not worth two seasonal cron entries.
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape-continente:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - run: uv sync --frozen
+
+      - run: uv run playwright install --with-deps chromium
+
+      - run: uv run python -m scraper.run --store continente
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

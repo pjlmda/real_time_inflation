@@ -12,6 +12,8 @@ import sys
 from dotenv import load_dotenv
 from supabase import create_client
 
+from alerting.base import Notifier
+from alerting.console import ConsoleNotifier
 from alerting.telegram import TelegramNotifier
 from scraper.continente import ContinenteScraper
 from scraper.db import SupabaseWriter
@@ -36,14 +38,25 @@ async def _main(store_slug: str, dry_run: bool) -> int:
         os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"]
     )
     db = SupabaseWriter(supabase_client)
-    notifier = TelegramNotifier(
-        token=os.environ["TELEGRAM_TOKEN"], chat_id=os.environ["TELEGRAM_CHAT_ID"]
-    )
 
     if dry_run:
         listings = db.get_active_listings(db.get_store_id(store_slug))
         print(f"[dry-run] {len(listings)} active listing(s) for {store_slug}")
         return 0
+
+    notifier: Notifier
+    telegram_token, telegram_chat_id = os.environ.get("TELEGRAM_TOKEN"), os.environ.get(
+        "TELEGRAM_CHAT_ID"
+    )
+    if telegram_token and telegram_chat_id:
+        notifier = TelegramNotifier(token=telegram_token, chat_id=telegram_chat_id)
+    else:
+        print(
+            "WARNING: TELEGRAM_TOKEN/TELEGRAM_CHAT_ID not set — alerts will only "
+            "print to the console, not reach Telegram.",
+            file=sys.stderr,
+        )
+        notifier = ConsoleNotifier()
 
     scraper = scraper_cls(config, db, notifier, proxy_url=os.environ.get("PROXY_URL"))
     result = await scraper.run(mode="basket")

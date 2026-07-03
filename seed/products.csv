@@ -1,13 +1,13 @@
 canonical_name,brand,is_store_brand,ecoicop2_code,package_size,package_unit,ean,continente_product_url,continente_sku,continente_category_url
-Leite Meio Gordo UHT 1L,Continente,true,01.1.4.1,1,L,TODO,TODO,TODO,https://www.continente.pt/laticinios-e-ovos/leite/meio-gordo/
-Leite Meio Gordo UHT 1L,Mimosa,false,01.1.4.1,1,L,TODO,TODO,TODO,https://www.continente.pt/laticinios-e-ovos/leite/meio-gordo/
-Leite Magro UHT 1L,Continente,true,01.1.4.1,1,L,TODO,TODO,TODO,https://www.continente.pt/laticinios-e-ovos/leite/magro/
-Leite Gordo UHT 1L,Agros,false,01.1.4.1,1,L,TODO,TODO,TODO,https://www.continente.pt/laticinios-e-ovos/leite/inteiro/
-Pão de Forma Branco 460g,Continente,true,01.1.1.3,460,g,TODO,TODO,TODO,https://www.continente.pt/frescos/padaria-e-pastelaria/pao-de-forma-e-embalado/
-Pão de Forma Branco 460g,Bimbo,false,01.1.1.3,460,g,TODO,TODO,TODO,https://www.continente.pt/frescos/padaria-e-pastelaria/pao-de-forma-e-embalado/
-Esparguete nº6 500g,Continente,true,01.1.1.6,500,g,TODO,TODO,TODO,https://www.continente.pt/mercearia/arroz-massa-e-farinha/massa/
-Massa Penne 500g,Milaneza,false,01.1.1.6,500,g,TODO,TODO,TODO,https://www.continente.pt/mercearia/arroz-massa-e-farinha/massa/
-Ovos Classe M embalagem 6un,Continente,true,01.1.4.6,6,un,TODO,TODO,TODO,https://www.continente.pt/laticinios-e-ovos/ovos/
-Ovos Classe L embalagem 10un,Continente,true,01.1.4.6,10,un,TODO,TODO,TODO,https://www.continente.pt/laticinios-e-ovos/ovos/
-Azeite Virgem Extra 750ml,Continente,true,01.1.5.3,750,ml,TODO,TODO,TODO,https://www.continente.pt/mercearia/azeite-oleo-e-vinagre/azeite/
-Azeite Virgem Extra 1L,Oliveira da Serra,false,01.1.5.3,1,L,TODO,TODO,TODO,https://www.continente.pt/mercearia/azeite-oleo-e-vinagre/azeite/
+Leite UHT Meio Gordo Continente,Continente,true,01.1.4.1,1,L,5601312508007,https://www.continente.pt/produto/leite-uht-meio-gordo-continente-continente-6879912.html,6879912,https://www.continente.pt/laticinios-e-ovos/leite/meio-gordo/
+Leite UHT Meio Gordo Mimosa,Mimosa,false,01.1.4.1,1,L,5601049132995,https://www.continente.pt/produto/leite-uht-meio-gordo-mimosa-mimosa-2210946.html,2210946,https://www.continente.pt/laticinios-e-ovos/leite/meio-gordo/
+Leite HGT Magro com Tampa Rosca Continente Equilíbrio,Continente Equilíbrio,true,01.1.4.1,1,L,5601312507994,https://www.continente.pt/produto/leite-hgt-magro-com-tampa-rosca-continente-equilibrio-continente-equilibrio-6879889.html,6879889,https://www.continente.pt/laticinios-e-ovos/leite/magro/
+Leite UHT Inteiro Mimosa,Mimosa,false,01.1.4.1,1,L,5601049131998,https://www.continente.pt/produto/leite-uht-inteiro-mimosa-mimosa-2210945.html,2210945,https://www.continente.pt/laticinios-e-ovos/leite/inteiro/
+Pão de Forma com Côdea Continente,Continente,true,01.1.1.3,820,g,5601312182887,https://www.continente.pt/produto/pao-de-forma-com-codea-continente-continente-7157938.html,7157938,https://www.continente.pt/frescos/padaria-e-pastelaria/pao-de-forma-e-embalado/
+Pão de Forma sem Côdea Bimbo,Bimbo,false,01.1.1.3,650,g,8412600070994,https://www.continente.pt/produto/pao-de-forma-sem-codea-bimbo-bimbo-6246547.html,6246547,https://www.continente.pt/frescos/padaria-e-pastelaria/pao-de-forma-e-embalado/
+Massa Esparguete Milaneza,Milaneza,false,01.1.1.6,1,kg,5601286260345,https://www.continente.pt/produto/massa-esparguete-milaneza-milaneza-6009925.html,6009925,https://www.continente.pt/mercearia/arroz-massa-e-farinha/massa/
+Massa Espirais Pack Poupança Continente,Continente,true,01.1.1.6,1,kg,5601312108825,https://www.continente.pt/produto/massa-espirais-pack-poupanca-continente-continente-8156329.html,8156329,https://www.continente.pt/mercearia/arroz-massa-e-farinha/massa/
+Ovos de Solo Classe M Continente,Continente,true,01.1.4.6,12,un,5601312509752,https://www.continente.pt/produto/ovos-de-solo-classe-m-continente-continente-7284496.html,7284496,https://www.continente.pt/laticinios-e-ovos/ovos/
+Ovos de Solo Classe L Continente,Continente,true,01.1.4.6,12,un,5601312508632,https://www.continente.pt/produto/ovos-de-solo-classe-l-continente-continente-7066777.html,7066777,https://www.continente.pt/laticinios-e-ovos/ovos/
+Azeite Virgem Extra Continente,Continente,true,01.1.5.3,750,ml,5601312077626,https://www.continente.pt/produto/azeite-virgem-extra-continente-continente-7108347.html,7108347,https://www.continente.pt/mercearia/azeite-oleo-e-vinagre/azeite/
+Azeite Virgem Extra Clássico Oliveira da Serra,Oliveira da Serra,false,01.1.5.3,750,ml,5601175101124,https://www.continente.pt/produto/azeite-virgem-extra-classico-oliveira-da-serra-oliveira-da-serra-2014566.html,2014566,https://www.continente.pt/mercearia/azeite-oleo-e-vinagre/azeite/

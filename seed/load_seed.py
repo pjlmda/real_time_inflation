@@ -59,7 +59,7 @@ def seed_products_and_listings(supabase_client) -> None:
             if not is_curated
             else row["continente_product_url"],
             "raw_name": row["canonical_name"],
-            "match_method": "manual",
+            "match_method": "ean" if row["ean"] != "TODO" else "manual",
             "is_active": is_curated,
         }
         supabase_client.table("product_listings").upsert(

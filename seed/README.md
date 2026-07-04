@@ -18,11 +18,14 @@ Splitting these two is what makes cross-store matching real: two
 physical product (same manufacturer, same EAN) is sold at two different
 stores — `load_seed.py` resolves `product_key` → `product_id` once, so both
 listings end up pointing at one `products` row instead of creating
-duplicates. 5 of the current 19 products are shared this way (matched by
-brand/product identity across Continente and Pingo Doce): Mimosa milk (meio
-gordo + inteiro), Bimbo bread, Milaneza pasta, and Oliveira da Serra olive
-oil — all confirmed identical (same package size, and for Continente's side,
-the same EAN) on both sites.
+duplicates. 5 of the current 28 products are shared this way (matched by
+brand/product identity, confirmed via identical EAN): Mimosa meio-gordo milk,
+Bimbo bread, and Milaneza pasta are each carried by all 3 stores; Mimosa
+inteiro milk and Oliveira da Serra "Clássico" olive oil are shared between
+Continente and Pingo Doce only (Auchan doesn't carry the exact same product —
+its own Oliveira da Serra listing is a different EAN, a "PET" bottle variant
+of the same brand, correctly kept as a separate product rather than forced
+into a false match).
 
 **Pitfall hit once already**: `products` upserts on `(canonical_name, brand)`
 (migration 0001's unique constraint) — if a product_key's `canonical_name` in
@@ -53,6 +56,16 @@ trick) — spec §5's anticipated fallback case — so all 12 Pingo Doce rows us
 `match_method='manual'` except the 5 shared products, which reuse the EAN
 already known from the Continente side of the match.
 
-Both stores' scrapers (`scraper/continente.py`, `scraper/pingodoce.py`) have
-been run against the live sites and verified: all prices/promos/price-per-unit
-values landed exactly matching what was found during curation.
+**Auchan** (12 listings, 3rd store): also Salesforce Commerce Cloud, SFRA-style
+like Pingo Doce, but the cleanest EAN exposure of the three — present in
+JSON-LD `gtin`, a `data-ean` attribute, *and* plain visible text
+(`<span class="product-ean">`) simultaneously. Category listing pages are
+directly crawlable (robots.txt only blocks filter/search params and
+account/checkout), so curation used the same category-page approach as
+Continente rather than Pingo Doce's sitemap-enumeration route.
+`match_method='ean'` for all 12.
+
+All three stores' scrapers (`scraper/continente.py`, `scraper/pingodoce.py`,
+`scraper/auchan.py`) have been run against the live sites and verified: all
+prices/promos/price-per-unit values landed exactly matching what was found
+during curation.

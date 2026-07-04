@@ -22,7 +22,7 @@ jobs:
       # stores in parallel at most is exactly what spec §7 allows.
       fail-fast: false
       matrix:
-        store: [continente, pingo-doce]
+        store: [continente, pingo-doce, auchan]
     steps:
       - uses: actions/checkout@v4
 

@@ -15,6 +15,8 @@ from supabase import create_client
 from alerting.base import Notifier
 from alerting.console import ConsoleNotifier
 from alerting.telegram import TelegramNotifier
+from scraper.auchan import AuchanScraper
+from scraper.auchan_category import AuchanCategoryCrawler
 from scraper.continente import ContinenteScraper
 from scraper.continente_category import ContinenteCategoryCrawler
 from scraper.db import SupabaseWriter
@@ -25,12 +27,14 @@ from scraper.store_config import load_store_config
 SCRAPERS = {
     "continente": ContinenteScraper,
     "pingo-doce": PingoDoceScraper,
-    # auchan / lidl: added once the widened pilot is verified (spec §11).
+    "auchan": AuchanScraper,
+    # lidl: added once the widened pilot is verified (spec §11).
 }
 
 CATEGORY_CRAWLERS = {
     "continente": ContinenteCategoryCrawler,
     "pingo-doce": PingoDoceCategoryCrawler,
+    "auchan": AuchanCategoryCrawler,
 }
 
 

@@ -46,3 +46,24 @@ pingo-doce:
     exclude_keywords: ["chocolate", "codorniz", "moles", "kinder", "milka"]
   "01.1.5.3":
     path_prefix: "/mercearia/azeite-oleo-e-vinagre/azeite/"
+
+# Auchan: also directly crawlable (robots.txt only blocks filter/search
+# params and account/checkout), same plain-URL-list approach as Continente.
+auchan:
+  "01.1.1.3":
+    urls:
+      - https://www.auchan.pt/pt/produtos-frescos/padaria/pao-de-forma-e-embalados/
+  "01.1.1.6":
+    urls:
+      - https://www.auchan.pt/pt/arroz-e-massa/esparguete-aletria-e-meadas/
+  "01.1.4.1":
+    urls:
+      - https://www.auchan.pt/pt/leites/leite-uht/
+  "01.1.4.6": # chicken eggs only — excludes quail eggs / liquid egg whites subcats
+    urls:
+      - https://www.auchan.pt/pt/ovos/ovos-galinhas-criadas-no-solo/
+      - https://www.auchan.pt/pt/ovos/ovos-galinhas-criadas-ao-ar-livre/
+      - https://www.auchan.pt/pt/ovos/ovos-galinhas-de-gaiola/
+  "01.1.5.3":
+    urls:
+      - https://www.auchan.pt/pt/azeite-oleo-e-vinagre/azeite/

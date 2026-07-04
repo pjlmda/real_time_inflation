@@ -11,6 +11,7 @@ dependencies = [
     "selectolax>=0.3",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
+    "tzdata>=2024.1",
 ]
 
 [dependency-groups]

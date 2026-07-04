@@ -7,9 +7,21 @@ connection-string/pooling/IP-allowlist setup to run from GitHub Actions.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from scraper.models import Listing, RunResult, ScrapedPrice
+
+LISBON_TZ = ZoneInfo("Europe/Lisbon")
+
+
+def _lisbon_scrape_date() -> str:
+    """`scrape_date` must be a fixed Europe/Lisbon calendar date regardless of
+    which machine/timezone runs the code — `date.today()` uses the ambient
+    system timezone, which differs between a local dev machine and GitHub
+    Actions' UTC runners and silently breaks the one-row-per-listing-per-day
+    idempotency guarantee across environments."""
+    return datetime.now(LISBON_TZ).date().isoformat()
 
 
 class SupabaseWriter:
@@ -31,7 +43,7 @@ class SupabaseWriter:
         return [Listing(**row) for row in resp.data]
 
     def listing_already_captured_today(self, listing_id: int) -> bool:
-        today = date.today().isoformat()
+        today = _lisbon_scrape_date()
         resp = (
             self.client.table("price_snapshots")
             .select("id")
@@ -45,7 +57,7 @@ class SupabaseWriter:
     def upsert_snapshot(self, listing_id: int, scraped: ScrapedPrice) -> None:
         row = {
             "listing_id": listing_id,
-            "scrape_date": date.today().isoformat(),
+            "scrape_date": _lisbon_scrape_date(),
             "scraped_at": datetime.now(timezone.utc).isoformat(),
             "price": scraped.price,
             "regular_price": scraped.regular_price,

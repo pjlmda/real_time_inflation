@@ -1,33 +1,58 @@
 # Seed data
 
 `load_seed.py` upserts, in order: `stores` (from `config/stores.yaml`),
-`categories` (from `categories.py`), then `products` + `product_listings`
-(from `products.csv`).
+`categories` (from `categories.py`), `products` (from `products.csv`), then
+`product_listings` (from `listings.csv`).
 
-## `products.csv` curation status
+## File structure
 
-Curated. Continente's catalogue is client-side rendered (plain fetches only
-return navigation chrome, no product data), so the 12 pilot rows were
-researched with a headful Playwright crawl: category pages were rendered to
-find candidate products, then each product detail page was rendered to pull
-its JSON-LD block (`name`, `brand`, `sku`, `price`) and its net-quantity
-label (`emb. 1 lt`, `emb. 820 gr`, `emb. 12 un`, ...) for `package_size` /
-`package_unit`. The EAN-13 barcode isn't in the JSON-LD, but Continente's
-frontend embeds it in the nutritional-info tab's AJAX URL
-(`...ProductNutritionalInfoTab?pid=...&ean=...&supplierid=...`), which is
-present in the initially rendered HTML — no extra request needed.
+- **`products.csv`**: canonical product definitions, one row per physical
+  good — `product_key` (a stable, human-readable join key), canonical_name,
+  brand, is_store_brand, ecoicop2_code, package_size, package_unit, ean.
+- **`listings.csv`**: one row per store-specific listing — `product_key`
+  (references a row in products.csv), store_slug, url, store_sku, ean,
+  match_method.
 
-All 12 rows have real `continente_product_url`, `continente_sku` (Continente's
-internal product id), and `ean`, and are seeded as `is_active = true`,
-`match_method = 'ean'`.
+Splitting these two is what makes cross-store matching real: two
+`listings.csv` rows can reference the *same* `product_key` when the same
+physical product (same manufacturer, same EAN) is sold at two different
+stores — `load_seed.py` resolves `product_key` → `product_id` once, so both
+listings end up pointing at one `products` row instead of creating
+duplicates. 5 of the current 19 products are shared this way (matched by
+brand/product identity across Continente and Pingo Doce): Mimosa milk (meio
+gordo + inteiro), Bimbo bread, Milaneza pasta, and Oliveira da Serra olive
+oil — all confirmed identical (same package size, and for Continente's side,
+the same EAN) on both sites.
 
-**Known gaps / caveats for whoever reviews the basket:**
-- `regular_price` vs `price`: one PDP inspected mid-promotion (`azeite-virgem-extra-continente`)
-  showed a PVPR of €4.69 vs a promotional price of €4.09 — a reminder that
-  `ContinenteScraper`'s JSON-LD path currently sets `regular_price = price`
-  unconditionally (see `scraper/continente.py`); the DOM-fallback path is the
-  only one that currently detects promotions. Worth revisiting once real
-  scrape data shows how often JSON-LD's `offers.price` is the promo price.
-- Selectors in `scraper/continente.py` (`PRICE_SELECTORS` etc.) are still
-  unverified against the live DOM fallback path — the JSON-LD path (now known
-  to work, per the above) is what a first live scrape will actually exercise.
+**Pitfall hit once already**: `products` upserts on `(canonical_name, brand)`
+(migration 0001's unique constraint) — if a product_key's `canonical_name` in
+`products.csv` doesn't match a pre-existing row's exact text (e.g. adding or
+dropping a word), the upsert silently creates a *new* product instead of
+updating the existing one, breaking the cross-store link. Keep canonical
+names byte-for-byte stable once a product_key is in use elsewhere.
+
+## Curation status: both stores curated, real data
+
+**Continente** (12 listings): client-side rendered (plain fetches return only
+nav chrome), researched via headful Playwright — category pages for
+candidates, then each PDP's JSON-LD (`name`/`brand`/`sku`) plus its
+net-quantity label (`emb. 1 lt`, `emb. 820 gr`, `emb. 12 un`) for
+package_size/unit. EAN isn't in the JSON-LD, but is embedded in the
+nutritional-info tab's AJAX URL (`...ProductNutritionalInfoTab?pid=...
+&ean=...&supplierid=...`), present in the initial page render — no extra
+request needed. `match_method='ean'` for all 12.
+
+**Pingo Doce** (12 listings, added when widening past the single-store
+pilot): also Salesforce Commerce Cloud, but its category *navigation* is
+entirely built on `Search-Show?cgid=...` URLs that its own `robots.txt`
+disallows. Product pages were instead discovered via the sitemap it
+references (`sitemap_0-product.xml` / `sitemap_1-product.xml`, ~15,600 real
+product URLs) — the sanctioned way to find crawlable pages here. Unlike
+Continente, **no EAN is exposed anywhere** (no JSON-LD offer, no AJAX-URL
+trick) — spec §5's anticipated fallback case — so all 12 Pingo Doce rows use
+`match_method='manual'` except the 5 shared products, which reuse the EAN
+already known from the Continente side of the match.
+
+Both stores' scrapers (`scraper/continente.py`, `scraper/pingodoce.py`) have
+been run against the live sites and verified: all prices/promos/price-per-unit
+values landed exactly matching what was found during curation.

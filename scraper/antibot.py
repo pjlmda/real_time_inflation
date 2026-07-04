@@ -30,6 +30,10 @@ BLOCK_TEXT_MARKERS = [
     "attention required",
 ]
 
+# Shared across all store scrapers (spec §7 backoff rule) — identical set for
+# every store so far, kept here rather than duplicated per store module.
+RETRYABLE_STATUS = {403, 429, 500, 502, 503, 504}
+
 
 class RobotsChecker:
     """Wraps stdlib `urllib.robotparser` for a single store's robots.txt."""

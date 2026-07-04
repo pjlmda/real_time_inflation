@@ -14,8 +14,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  scrape-continente:
+  scrape:
     runs-on: ubuntu-latest
+    strategy:
+      # Each store scrapes in its own parallel job — never parallel *within*
+      # a store (single tab per run, enforced inside BaseScraper.run), but
+      # stores in parallel at most is exactly what spec §7 allows.
+      fail-fast: false
+      matrix:
+        store: [continente, pingo-doce]
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +35,7 @@ jobs:
 
       - run: uv run playwright install --with-deps chromium
 
-      - run: uv run python -m scraper.run --store continente
+      - run: uv run python -m scraper.run --store ${{ matrix.store }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

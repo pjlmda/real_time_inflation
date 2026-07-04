@@ -17,11 +17,9 @@ import re
 
 from playwright.async_api import Page
 
-from scraper.antibot import RetryableHttpError, detect_block
+from scraper.antibot import RETRYABLE_STATUS, RetryableHttpError, detect_block
 from scraper.base import BaseScraper
 from scraper.models import BlockDetected, FetchFailed, Listing, ScrapedPrice
-
-RETRYABLE_STATUS = {403, 429, 500, 502, 503, 504}
 
 PRICE_PRIMARY_SELECTOR = ".pwc-tile--price-primary"
 PRICE_REGULAR_SELECTOR = ".strike-through.pwc-tile--price-dashed .value"

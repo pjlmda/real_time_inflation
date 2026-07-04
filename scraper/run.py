@@ -17,11 +17,13 @@ from alerting.console import ConsoleNotifier
 from alerting.telegram import TelegramNotifier
 from scraper.continente import ContinenteScraper
 from scraper.db import SupabaseWriter
+from scraper.pingodoce import PingoDoceScraper
 from scraper.store_config import load_store_config
 
 SCRAPERS = {
     "continente": ContinenteScraper,
-    # pingo-doce / auchan / lidl: added once the pilot is verified (spec §11 widening).
+    "pingo-doce": PingoDoceScraper,
+    # auchan / lidl: added once the widened pilot is verified (spec §11).
 }
 
 

@@ -1,4 +1,4 @@
-from scraper.db import _lisbon_scrape_date, SupabaseWriter
+from scraper.db import lisbon_scrape_date, SupabaseWriter
 from scraper.models import RunResult, ScrapedPrice
 from tests.fake_supabase import FakeSupabaseClient
 
@@ -28,7 +28,7 @@ def test_upsert_snapshot_sends_correct_row_and_conflict_key():
     call = calls[0]
     assert call.op == "upsert"
     assert call.payload["listing_id"] == 42
-    assert call.payload["scrape_date"] == _lisbon_scrape_date()
+    assert call.payload["scrape_date"] == lisbon_scrape_date()
     assert call.payload["price"] == 0.79
     assert call.payload["is_promotion"] is True
     assert call.payload["currency"] == "EUR"

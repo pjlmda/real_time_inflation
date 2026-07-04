@@ -10,12 +10,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from scraper.models import Listing, RunResult, ScrapedPrice
+from scraper.models import CategoryStats, Listing, RunResult, ScrapedPrice
 
 LISBON_TZ = ZoneInfo("Europe/Lisbon")
 
 
-def _lisbon_scrape_date() -> str:
+def lisbon_scrape_date() -> str:
     """`scrape_date` must be a fixed Europe/Lisbon calendar date regardless of
     which machine/timezone runs the code — `date.today()` uses the ambient
     system timezone, which differs between a local dev machine and GitHub
@@ -43,7 +43,7 @@ class SupabaseWriter:
         return [Listing(**row) for row in resp.data]
 
     def listing_already_captured_today(self, listing_id: int) -> bool:
-        today = _lisbon_scrape_date()
+        today = lisbon_scrape_date()
         resp = (
             self.client.table("price_snapshots")
             .select("id")
@@ -57,7 +57,7 @@ class SupabaseWriter:
     def upsert_snapshot(self, listing_id: int, scraped: ScrapedPrice) -> None:
         row = {
             "listing_id": listing_id,
-            "scrape_date": _lisbon_scrape_date(),
+            "scrape_date": lisbon_scrape_date(),
             "scraped_at": datetime.now(timezone.utc).isoformat(),
             "price": scraped.price,
             "regular_price": scraped.regular_price,
@@ -101,3 +101,43 @@ class SupabaseWriter:
         self.client.table("stores").update(
             {"robots_checked_at": datetime.now(timezone.utc).isoformat()}
         ).eq("id", store_id).execute()
+
+    def get_category_id(self, ecoicop2_code: str) -> int:
+        resp = (
+            self.client.table("categories")
+            .select("id")
+            .eq("ecoicop2_code", ecoicop2_code)
+            .limit(1)
+            .execute()
+        )
+        return resp.data[0]["id"]
+
+    def category_already_captured_today(self, store_id: int, category_id: int) -> bool:
+        today = lisbon_scrape_date()
+        resp = (
+            self.client.table("category_observations")
+            .select("id")
+            .eq("store_id", store_id)
+            .eq("category_id", category_id)
+            .eq("scrape_date", today)
+            .limit(1)
+            .execute()
+        )
+        return len(resp.data) > 0
+
+    def upsert_category_observation(
+        self, store_id: int, category_id: int, stats: CategoryStats
+    ) -> None:
+        row = {
+            "store_id": store_id,
+            "category_id": category_id,
+            "scrape_date": lisbon_scrape_date(),
+            "n_products": stats.n_products,
+            "median_price_per_unit": stats.median,
+            "mean_price_per_unit": stats.mean,
+            "p25_price_per_unit": stats.p25,
+            "p75_price_per_unit": stats.p75,
+        }
+        self.client.table("category_observations").upsert(
+            row, on_conflict="store_id,category_id,scrape_date"
+        ).execute()

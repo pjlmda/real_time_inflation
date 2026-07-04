@@ -1,0 +1,48 @@
+# Category-crawl discovery config (spec §4.6, dynamic/self-healing index).
+#
+# Continente: category listing pages are directly crawlable (allowed by
+# robots.txt) and already curated by the retailer, so a plain URL list is
+# enough — one category can span multiple sub-pages (e.g. milk fat-content
+# variants), merged into a single category_observations row per day.
+#
+# Pingo Doce: category *navigation* is entirely disallowed cgid search URLs
+# (its own robots.txt), so products are discovered from its product sitemap
+# instead (same method used for its fixed-basket curation) and matched by
+# either a path prefix or explicit keywords. `exclude_keywords` filters out
+# sitemap noise that isn't really this ECOICOP category (e.g. flavored milk,
+# chocolate "eggs", quail eggs) — the sitemap has no category structure of
+# its own, so this filtering is inherently approximate; the point of the
+# category-average index is to be a robustness check, not pixel-perfect.
+
+continente:
+  "01.1.1.3": # Bread and cereals -> Bread
+    urls:
+      - https://www.continente.pt/frescos/padaria-e-pastelaria/pao-de-forma-e-embalado/
+  "01.1.1.6": # Bread and cereals -> Pasta products and couscous
+    urls:
+      - https://www.continente.pt/mercearia/arroz-massa-e-farinha/massa/
+  "01.1.4.1": # Milk, cheese and eggs -> Fresh milk
+    urls:
+      - https://www.continente.pt/laticinios-e-ovos/leite/meio-gordo/
+      - https://www.continente.pt/laticinios-e-ovos/leite/magro/
+      - https://www.continente.pt/laticinios-e-ovos/leite/inteiro/
+  "01.1.4.6": # Milk, cheese and eggs -> Eggs
+    urls:
+      - https://www.continente.pt/laticinios-e-ovos/ovos/
+  "01.1.5.3": # Oils and fats -> Olive oil
+    urls:
+      - https://www.continente.pt/mercearia/azeite-oleo-e-vinagre/azeite/
+
+pingo-doce:
+  "01.1.1.3":
+    path_prefix: "/padaria-e-pastelaria/pao-embalado/pao-de-forma-e-embalado/"
+  "01.1.1.6":
+    path_prefix: "/mercearia/arroz-massa-e-leguminosas/massa/"
+  "01.1.4.1":
+    path_prefix: "/leite-e-bebidas-vegetais%E2%80%8B/leite/"
+    exclude_keywords: ["achocolatado", "aromatizado"]
+  "01.1.4.6":
+    keywords: ["ovos-de-solo", "ovos-de-ar-livre", "ovos-classe"]
+    exclude_keywords: ["chocolate", "codorniz", "moles", "kinder", "milka"]
+  "01.1.5.3":
+    path_prefix: "/mercearia/azeite-oleo-e-vinagre/azeite/"

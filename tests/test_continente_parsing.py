@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from scraper.continente import _parse_price, _parse_price_per_unit, parse_json_ld
+from scraper.continente import _parse_price, parse_price_per_unit, parse_json_ld
 from scraper.models import FetchFailed
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -41,9 +41,9 @@ def test_parse_price_handles_comma_decimal_and_currency_symbol():
     ],
 )
 def test_parse_price_per_unit_matches_real_continente_formats(text, expected):
-    assert _parse_price_per_unit(text) == expected
+    assert parse_price_per_unit(text) == expected
 
 
 def test_parse_price_per_unit_raises_on_unparseable_text():
     with pytest.raises(FetchFailed):
-        _parse_price_per_unit("indisponível")
+        parse_price_per_unit("indisponível")

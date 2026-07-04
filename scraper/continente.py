@@ -79,7 +79,7 @@ class ContinenteScraper(BaseScraper):
         ppu_locator = page.locator(PRICE_PER_UNIT_SELECTOR).first
         ppu_text = ((await ppu_locator.text_content()) or "").strip() if await ppu_locator.count() > 0 else ""
         if ppu_text:
-            price_per_unit, unit_basis = _parse_price_per_unit(ppu_text)
+            price_per_unit, unit_basis = parse_price_per_unit(ppu_text)
         else:
             price_per_unit, unit_basis = price, "EUR/unit"
 
@@ -121,7 +121,7 @@ def _parse_price(text: str) -> float:
     return float(f"{match.group(1)}.{match.group(2)}")
 
 
-def _parse_price_per_unit(text: str) -> tuple[float, str]:
+def parse_price_per_unit(text: str) -> tuple[float, str]:
     match = PRICE_PER_UNIT_RE.search(text.replace("\xa0", " "))
     if not match:
         raise FetchFailed(f"could not parse price-per-unit from text: {text!r}")

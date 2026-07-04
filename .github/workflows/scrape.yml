@@ -35,7 +35,15 @@ jobs:
 
       - run: uv run playwright install --with-deps chromium
 
-      - run: uv run python -m scraper.run --store ${{ matrix.store }}
+      - run: uv run python -m scraper.run --store ${{ matrix.store }} --mode basket
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      # Per spec §10: "scrape.yml: basket + category crawl, all stores."
+      - run: uv run python -m scraper.run --store ${{ matrix.store }} --mode category
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

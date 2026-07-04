@@ -26,6 +26,15 @@ class ScrapedPrice:
     raw_payload: dict
 
 
+@dataclass(frozen=True)
+class CategoryStats:
+    n_products: int
+    median: float
+    mean: float
+    p25: float
+    p75: float
+
+
 @dataclass
 class RunResult:
     run_id: int

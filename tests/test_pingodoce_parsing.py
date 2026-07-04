@@ -1,6 +1,6 @@
 import pytest
 
-from scraper.pingodoce import _parse_unit_measure
+from scraper.pingodoce import parse_unit_measure
 
 
 @pytest.mark.parametrize(
@@ -14,9 +14,15 @@ from scraper.pingodoce import _parse_unit_measure
     ],
 )
 def test_parse_unit_measure_matches_real_pingodoce_formats(text, expected):
-    assert _parse_unit_measure(text, fallback_price=999) == expected
+    assert parse_unit_measure(text, fallback_price=999) == expected
 
 
 def test_parse_unit_measure_falls_back_when_unparseable():
-    assert _parse_unit_measure("", fallback_price=1.23) == (1.23, "EUR/unit")
-    assert _parse_unit_measure("indisponível", fallback_price=1.23) == (1.23, "EUR/unit")
+    assert parse_unit_measure("", fallback_price=1.23) == (1.23, "EUR/unit")
+    assert parse_unit_measure("indisponível", fallback_price=1.23) == (1.23, "EUR/unit")
+
+
+def test_parse_unit_measure_computes_price_per_unit_for_weight_only_text():
+    # Fresh/weight-sold items (talho, charcutaria) show only a weight, no
+    # embedded price-per-unit — must be computed from the sales price.
+    assert parse_unit_measure("1.5 Kg", fallback_price=2.49) == (pytest.approx(1.66), "EUR/kg")

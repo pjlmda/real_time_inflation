@@ -35,6 +35,10 @@ OUT_OF_STOCK_SELECTORS = [".product-unavailable", ".out-of-stock"]
 # "0,9 €/L", "2,52 €/Kg", "0,26 €/Un" — one or two decimal digits, unit
 # abbreviation varies in case.
 PRICE_PER_UNIT_RE = re.compile(r"(\d+)[.,](\d+)\D*?/\s*([a-zA-Z]+)")
+# Fresh/weight-sold items (talho, charcutaria) show only the weight in this
+# element (e.g. "1.5 Kg"), no embedded "| price/unit" suffix at all — no "/"
+# to anchor on, so this is only tried once PRICE_PER_UNIT_RE has failed.
+WEIGHT_ONLY_RE = re.compile(r"(\d+(?:\.\d+)?)\s*([a-zA-Z]+)")
 UNIT_ABBREV_MAP = {"l": "L", "kg": "kg", "un": "un"}
 
 
@@ -75,7 +79,7 @@ class PingoDoceScraper(BaseScraper):
         unit_measure_text = (
             (await unit_measure_locator.text_content()) or ""
         ).strip() if await unit_measure_locator.count() > 0 else ""
-        price_per_unit, unit_basis = _parse_unit_measure(unit_measure_text, fallback_price=price)
+        price_per_unit, unit_basis = parse_unit_measure(unit_measure_text, fallback_price=price)
 
         promotion_label = None
         if is_promotion and regular_price > 0:
@@ -107,14 +111,29 @@ class PingoDoceScraper(BaseScraper):
         return False
 
 
-def _parse_unit_measure(text: str, fallback_price: float) -> tuple[float, str]:
+def parse_unit_measure(text: str, fallback_price: float) -> tuple[float, str]:
     """`"1 L | 0,9 €/L"` -> (0.9, "EUR/L"). Only the price-per-unit half (after
     `|`) is used — package size/unit is static product metadata already
-    stored in `products`, not re-derived from each scrape."""
-    match = PRICE_PER_UNIT_RE.search(text.replace("\xa0", " "))
-    if not match:
-        return fallback_price, "EUR/unit"
-    value = float(f"{match.group(1)}.{match.group(2)}")
-    abbrev = match.group(3).lower()
-    unit = UNIT_ABBREV_MAP.get(abbrev, abbrev)
-    return value, f"EUR/{unit}"
+    stored in `products`, not re-derived from each scrape.
+
+    Fresh/weight-sold items show only a weight here (e.g. "1.5 Kg", no
+    embedded price-per-unit at all) — in that case, compute price-per-unit
+    from `fallback_price / weight` ourselves rather than falling back to a
+    meaningless "EUR/unit" default."""
+    normalized = text.replace("\xa0", " ")
+    match = PRICE_PER_UNIT_RE.search(normalized)
+    if match:
+        value = float(f"{match.group(1)}.{match.group(2)}")
+        abbrev = match.group(3).lower()
+        unit = UNIT_ABBREV_MAP.get(abbrev, abbrev)
+        return value, f"EUR/{unit}"
+
+    weight_match = WEIGHT_ONLY_RE.search(normalized)
+    if weight_match:
+        weight = float(weight_match.group(1))
+        abbrev = weight_match.group(2).lower()
+        unit = UNIT_ABBREV_MAP.get(abbrev, abbrev)
+        if weight > 0:
+            return fallback_price / weight, f"EUR/{unit}"
+
+    return fallback_price, "EUR/unit"

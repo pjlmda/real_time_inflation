@@ -20,7 +20,13 @@ from playwright.async_api import Page
 
 from scraper.antibot import RobotsChecker
 from scraper.category_base import CategoryCrawlerBase
-from scraper.pingodoce import PRICE_PER_UNIT_RE, UNIT_MEASURE_SELECTOR
+from scraper.pingodoce import (
+    PRICE_PER_UNIT_RE,
+    SALES_VALUE_SELECTOR,
+    UNIT_MEASURE_SELECTOR,
+    WEIGHT_ONLY_RE,
+    parse_unit_measure,
+)
 
 SITEMAP_URLS = [
     "https://www.pingodoce.pt/home/sitemap_0-product.xml",
@@ -42,6 +48,10 @@ def _matches(url: str, category_config: dict) -> bool:
 
 
 class PingoDoceCategoryCrawler(CategoryCrawlerBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._sitemap_urls: list[str] | None = None
+
     async def fetch_category_prices(
         self,
         page: Page,
@@ -50,7 +60,8 @@ class PingoDoceCategoryCrawler(CategoryCrawlerBase):
         ecoicop2_code: str,
         category_config: dict,
     ) -> list[float]:
-        candidate_urls = await self._discover_urls(category_config)
+        all_urls = await self._get_sitemap_urls()
+        candidate_urls = [u for u in all_urls if _matches(u, category_config)]
 
         prices: list[float] = []
         for url in candidate_urls[:SAMPLE_CAP]:
@@ -62,22 +73,47 @@ class PingoDoceCategoryCrawler(CategoryCrawlerBase):
                 await asyncio.sleep(random.uniform(*delay_range))
                 continue
 
+            sales_locator = page.locator(SALES_VALUE_SELECTOR).first
             unit_locator = page.locator(UNIT_MEASURE_SELECTOR).first
-            if await unit_locator.count() > 0:
-                text = ((await unit_locator.text_content()) or "").strip().replace("\xa0", " ")
-                match = PRICE_PER_UNIT_RE.search(text)
-                if match:
-                    prices.append(float(f"{match.group(1)}.{match.group(2)}"))
+            if await sales_locator.count() > 0 and await unit_locator.count() > 0:
+                sales_content = await sales_locator.get_attribute("content")
+                unit_text = ((await unit_locator.text_content()) or "").strip()
+                # Only include products where the unit-measure text actually
+                # carries usable signal (an embedded price-per-unit, or at
+                # least a parseable weight for parse_unit_measure to divide
+                # the sales price by) — otherwise parse_unit_measure's final
+                # fallback would silently inject a raw absolute price into
+                # what's supposed to be a price-*per-unit* sample.
+                has_signal = bool(
+                    PRICE_PER_UNIT_RE.search(unit_text) or WEIGHT_ONLY_RE.search(unit_text)
+                )
+                if sales_content and has_signal:
+                    price_per_unit, _basis = parse_unit_measure(
+                        unit_text, fallback_price=float(sales_content)
+                    )
+                    prices.append(price_per_unit)
 
             await asyncio.sleep(random.uniform(*delay_range))
         return prices
 
-    @staticmethod
-    async def _discover_urls(category_config: dict) -> list[str]:
+    async def _get_sitemap_urls(self) -> list[str]:
+        """Fetches both product sitemaps once per crawl run and caches the
+        result on the instance — CategoryCrawlerBase.run() calls
+        fetch_category_prices once per configured category on the same
+        crawler instance, and re-fetching the full ~15,600-URL sitemap fresh
+        for every one of those calls was wasteful. (The actual root cause of
+        two categories once returning zero/few matches turned out to be
+        unrelated — fresh/weight-sold items showing no embedded
+        price-per-unit at all, fixed via parse_unit_measure's weight-only
+        fallback above — but avoiding six redundant multi-MB refetches is
+        worth keeping regardless.)"""
+        if self._sitemap_urls is not None:
+            return self._sitemap_urls
         urls: list[str] = []
         async with httpx.AsyncClient(timeout=30.0) as client:
             for sitemap_url in SITEMAP_URLS:
                 resp = await client.get(sitemap_url)
                 resp.raise_for_status()
                 urls.extend(LOC_RE.findall(resp.text))
-        return [u for u in urls if _matches(u, category_config)]
+        self._sitemap_urls = urls
+        return urls

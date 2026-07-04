@@ -69,3 +69,33 @@ All three stores' scrapers (`scraper/continente.py`, `scraper/pingodoce.py`,
 `scraper/auchan.py`) have been run against the live sites and verified: all
 prices/promos/price-per-unit values landed exactly matching what was found
 during curation.
+
+## Basket growth: 6 new categories (rice, cheese, poultry, canned fish, wine, toiletries)
+
+Added one representative product per category per store (18 listings, 16 new
+products — Monte Velho red wine turned out to be carried, identically, by
+all 3 stores, confirmed via matching EAN 5601989001412 at Continente and
+Auchan and reused for Pingo Doce's listing since it never exposes EAN
+itself). Chosen over household cleaning (spec's other under-represented
+area) per user steer — protein staples matter more for a family grocery
+basket than cleaning products, for this pass.
+
+**Real gotcha hit during curation**: several sitemap-sourced Continente
+product URLs (a whole chicken, a solid soap bar) turned out to be stale/
+delisted — the page redirected to the generic homepage instead of 404ing,
+so the failure only showed up as a missing JSON-LD `Product` block, not an
+HTTP error. Always spot-check that a curated URL's JSON-LD `@type` is
+actually `"Product"`, not just that the request returned 200.
+
+**Real bug found and fixed during category-crawl verification**: Pingo
+Doce's fresh/weight-sold items (talho butcher counter, charcutaria-e-queijos
+cheese counter) render only a bare weight in the unit-measure element (e.g.
+`"1.5 Kg"`), not the `"1 L | 0,9 €/L"` format packaged goods show — so the
+price-per-unit regex correctly found nothing, but the *fixed-basket*
+scraper's fallback path silently degraded these to a meaningless
+`unit_basis="EUR/unit"`, and the *category crawler* excluded them entirely
+(0-2 products found for poultry/cheese instead of the expected 15).
+`scraper/pingodoce.py`'s `parse_unit_measure()` now recognizes weight-only
+text and computes `price_per_unit = sales_price / weight` itself; the
+category crawler was updated to fetch the sales price too so it can do the
+same computation instead of skipping these items.

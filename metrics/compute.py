@@ -17,12 +17,13 @@ happens.
 Scoped to index_family='fixed_basket' only — category_avg needs
 category_observations history to exist first (a natural next increment).
 
-Not scheduled yet (no compute.yml) — run manually until verified against
-enough real data: `python -m metrics.compute`
+Scheduled via `.github/workflows/compute.yml`, triggered on `scrape.yml`
+completion. Manual run: `python -m metrics.compute`
 """
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Iterator
 from datetime import date, timedelta
 
@@ -233,16 +234,51 @@ def compute_metrics_for_date(client, as_of_date: str) -> list[dict]:
 
 
 def main() -> None:
+    import asyncio
+
     from dotenv import load_dotenv
     from supabase import create_client
 
+    from alerting.base import Notifier
+    from alerting.console import ConsoleNotifier
+    from alerting.telegram import TelegramNotifier
     from scraper.db import lisbon_scrape_date
 
     load_dotenv()
+
+    notifier: Notifier
+    token, chat_id = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+    if token and chat_id:
+        notifier = TelegramNotifier(token=token, chat_id=chat_id)
+    else:
+        print(
+            "WARNING: TELEGRAM_TOKEN/TELEGRAM_CHAT_ID not set — alerts will only "
+            "print to the console, not reach Telegram.",
+            file=sys.stderr,
+        )
+        notifier = ConsoleNotifier()
+
     client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
     as_of_date = lisbon_scrape_date()
-    rows = compute_metrics_for_date(client, as_of_date)
+
+    # Spec §8: "compute job error / missing daily metrics" is an alertable
+    # incident, same tier as a failed scrape — a stale index is silent
+    # otherwise, since nothing else re-checks that today's row landed.
+    try:
+        rows = compute_metrics_for_date(client, as_of_date)
+    except Exception as exc:
+        asyncio.run(notifier.send(f"*Compute job failed* for {as_of_date}:\n{exc}"))
+        raise
+
     print(f"Wrote {len(rows)} inflation_metrics rows for {as_of_date}.")
+    if not rows:
+        asyncio.run(
+            notifier.send(
+                f"*Compute job produced no metrics* for {as_of_date} — "
+                "check basket coverage and today's price_snapshots."
+            )
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

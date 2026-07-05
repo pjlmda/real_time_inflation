@@ -1,0 +1,32 @@
+name: fuel
+
+on:
+  schedule:
+    # Same cadence as scrape.yml; DGEG's own reporting lag means "today's"
+    # run typically records yesterday's finalized average, not today's.
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: fuel
+  cancel-in-progress: false
+
+jobs:
+  fuel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - run: uv sync --frozen
+
+      - run: uv run playwright install --with-deps chromium
+
+      - run: uv run python -m fuel.run --source dgeg
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

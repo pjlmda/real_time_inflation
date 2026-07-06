@@ -2,7 +2,16 @@ import type { HealthResponse } from "../lib/types";
 
 function formatTime(iso: string | null): string {
   if (!iso) return "never";
-  return new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+  // Explicit timeZone (matching the rest of the project's Europe/Lisbon
+  // convention) is required here, not just cosmetic — without it, this
+  // renders differently on the server (Vercel, UTC) vs. whatever timezone
+  // the visiting browser is in, which is a real Next.js hydration mismatch
+  // (React error #418), not just a display inconsistency.
+  return new Date(iso).toLocaleString("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Lisbon",
+  });
 }
 
 export default function CoverageBanner({ health }: { health: HealthResponse }) {

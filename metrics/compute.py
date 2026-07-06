@@ -27,7 +27,7 @@ import sys
 from collections.abc import Iterator
 from datetime import date, timedelta
 
-from metrics.formulas import inflation_rate, jevons_class_index, weighted_overall_index
+from metrics.formulas import inflation_rate, jevons_class_index, moving_average, weighted_overall_index
 
 PRICE_BASES = [("headline", "regular_price"), ("effective", "price")]
 PERIOD_LOOKBACK_DAYS = {"daily": 1, "weekly": 7, "monthly": 30, "yearly": 365}
@@ -130,6 +130,31 @@ def _existing_index(
     return float(resp.data[0]["index_value"]) if resp.data else None
 
 
+def _recent_daily_indices(
+    client, as_of_date: str, dimension: str, dimension_value: str, price_basis: str, days: int = 6
+) -> list[float]:
+    """Prior `days` days of this scope's raw daily index_value (already
+    persisted from previous runs) — used to build an expanding-then-7-day
+    moving average for today's headline (spec §6: "raw daily is noisy from
+    rounding/promos")."""
+    start_date = (date.fromisoformat(as_of_date) - timedelta(days=days)).isoformat()
+    end_date = (date.fromisoformat(as_of_date) - timedelta(days=1)).isoformat()
+    resp = (
+        client.table("inflation_metrics")
+        .select("index_value")
+        .eq("index_family", "fixed_basket")
+        .eq("period", "daily")
+        .eq("dimension", dimension)
+        .eq("dimension_value", dimension_value)
+        .eq("price_basis", price_basis)
+        .gte("as_of_date", start_date)
+        .lte("as_of_date", end_date)
+        .order("as_of_date")
+        .execute()
+    )
+    return [float(r["index_value"]) for r in resp.data]
+
+
 def _write_index_and_rates(
     client,
     as_of_date: str,
@@ -150,10 +175,14 @@ def _write_index_and_rates(
             "dimension_value": dimension_value,
             "price_basis": price_basis,
             "index_value": round(index_value, 4),
+            "index_value_ma7": None,
             "inflation_rate": None,
             "n_products": n_products,
             "coverage": round(coverage, 4),
         }
+        if period == "daily":
+            history = _recent_daily_indices(client, as_of_date, dimension, dimension_value, price_basis)
+            row["index_value_ma7"] = round(moving_average(history + [index_value]), 4)
         past_index = _existing_index(client, as_of_date, period, dimension, dimension_value, price_basis)
         if past_index is not None:
             row["inflation_rate"] = round(inflation_rate(index_value, past_index), 4)

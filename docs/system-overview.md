@@ -10,7 +10,7 @@ A daily-updating grocery-inflation index for Portugal, built by scraping public 
 
 Two index families are designed in the spec (only one is built so far):
 - **Fixed-basket index** (built, running daily) — a curated, EAN-matched basket of 44 products / 54 store-listings, Jevons-aggregated per ECOICOP class, HICP-weighted across classes.
-- **Category-average index** (data collection built, aggregation/compute not built yet) — broader per-category price statistics (median/mean/p25/p75) from crawling whole category listing pages, intended as a robustness/self-healing check against the fixed basket. `category_observations` has been accumulating data since Phase 2 (99 rows so far) but nothing yet reads from it to produce a `category_avg` row in `inflation_metrics`.
+- **Category-average index** (now built — `metrics/category_compute.py`) — broader per-category price statistics (median/mean/p25/p75) from crawling whole category listing pages, a robustness/self-healing check against the fixed basket. Reads `category_observations`, writes `index_family='category_avg'` rows into `inflation_metrics` (only `price_basis='effective'` — see §5) in the same daily job as the fixed-basket compute.
 
 ---
 
@@ -73,7 +73,7 @@ Store-specific identity for a product. `id serial PK`, `product_id → products.
 `id bigserial PK`, `listing_id → product_listings.id`, `scrape_date date`, `scraped_at timestamptz`, `price numeric(8,2)` (effective/displayed price), `regular_price numeric(8,2)` (headline/regular price), `price_per_unit numeric(10,4)`, `unit_basis text` (e.g. `EUR/L`), `is_promotion bool`, `promotion_label text`, `in_stock bool`, `currency default 'EUR'`, **`raw_payload jsonb not null`** (the full scrape evidence — selector text, source flag, promo flag — kept so any row is reprocessable without re-scraping). **Unique `(listing_id, scrape_date)`** — this is what makes same-day re-runs idempotent (upsert, not insert). Never updated/deleted in place per design. 162 rows (3 calendar days × 54 listings).
 
 ### 3.6 `category_observations`
-Per store × ECOICOP class × day aggregate stats from the *dynamic* category crawl (distinct from the fixed-basket snapshots above). `id bigserial PK`, `store_id`, `category_id`, `scrape_date`, `n_products int`, `median/mean/p25/p75_price_per_unit numeric(10,4)`, `raw_payload jsonb`. **Unique `(store_id, category_id, scrape_date)`**. 99 rows. Feeds the not-yet-built category-average index.
+Per store × ECOICOP class × day aggregate stats from the *dynamic* category crawl (distinct from the fixed-basket snapshots above). `id bigserial PK`, `store_id`, `category_id`, `scrape_date`, `n_products int`, `median/mean/p25/p75_price_per_unit numeric(10,4)`, `raw_payload jsonb`. **Unique `(store_id, category_id, scrape_date)`**. 99 rows. Feeds the category-average index (`metrics/category_compute.py`, §5) via `median_price_per_unit` — mean/p25/p75 are captured but not currently used by any compute step.
 
 ### 3.7 `inflation_metrics` — computed output
 `id bigserial PK`, `as_of_date date`, `index_family text` (check: `fixed_basket | category_avg` — only `fixed_basket` is ever written today), `period text` (check: `daily | weekly | monthly | yearly`), `dimension text` (check: `overall | category | subcategory | store | brand` — `subcategory`/`brand` are schema-reserved, unused today), `dimension_value text` (e.g. `ALL`, an ECOICOP code, or a store slug), `price_basis text` (check: `headline | effective`), `index_value numeric(10,4)`, `inflation_rate numeric(8,4)` (nullable — only filled once a lookback-period row exists), `n_products int`, `coverage numeric(5,4)`, `computed_at timestamptz`. **Unique `(as_of_date, index_family, period, dimension, dimension_value, price_basis)`**. 360 rows (3 days × 120 rows/day: (11 categories + 1 overall + 3 stores) × 2 price bases × 4 periods = 120).
@@ -161,7 +161,8 @@ Fetches Portugal's HICP item weights from Eurostat's `prc_hicp_inw` dataset (JSO
 
 ### `metrics/`
 - **`formulas.py`** — pure math, no I/O: `jevons_class_index` (weighted geometric mean of price relatives, weights renormalized to sum to 1 inside the call), `weighted_overall_index` (weighted arithmetic mean across classes, same renormalization), `inflation_rate` (`(current/base − 1) × 100`).
-- **`compute.py`** — orchestrates the daily compute: fetches all active `product_listings` (optionally scoped to one store), fetches every snapshot for those listings, computes each listing's relative (`current_price / its_own_first_ever_price` — so a product added later still gets a valid relative from its own start date, not a missing/zero base), groups into per-ECOICOP-class Jevons indices, combines into an `overall` row (all stores) and a `store` row (per store), for both `headline`/`effective` price bases and all 4 periods, upserting 120 rows/day. `inflation_rate` is populated only when a same-scope row already exists at the lookback date (`as_of_date - {1,7,30,365} days`) — so weekly/monthly/yearly rates silently start appearing on their own once enough history exists, no code change needed.
+- **`compute.py`** — orchestrates the daily **fixed-basket** compute: fetches all active `product_listings` (optionally scoped to one store), fetches every snapshot for those listings, computes each listing's relative (`current_price / its_own_first_ever_price` — so a product added later still gets a valid relative from its own start date, not a missing/zero base), groups into per-ECOICOP-class Jevons indices, combines into an `overall` row (all stores) and a `store` row (per store), for both `headline`/`effective` price bases and all 4 periods, upserting 120 rows/day. `inflation_rate` is populated only when a same-scope row already exists at the lookback date (`as_of_date - {1,7,30,365} days`) — so weekly/monthly/yearly rates silently start appearing on their own once enough history exists, no code change needed. Its `main()` now also calls `category_compute`'s entrypoint (below) so both index families run in one job/alert.
+- **`category_compute.py`** (Phase 2's other half, completed 2026-07-06) — the **category-average** compute: fetches every `category_observations` row at once, groups by `(store_id, category_id)`, and for each pair computes `relative = median_price_per_unit_t / _0` (again, base = that pair's own first-ever observation). Unlike the fixed-basket, there's no elementary-product layer to Jevons-aggregate — `category_observations` rows are already class-level aggregates — so every combination step (cross-store into a `category` row, cross-class into `overall`/`store` rows) reuses `weighted_overall_index` directly: cross-store weighted by that store's `n_products` sample size that day, cross-class weighted by `hicp_weight` same as the fixed-basket. Only ever writes `price_basis='effective'` (category crawlers capture one blended price-per-unit per tile, no separate promo/regular split, so labeling it "headline" would overstate what's measured). Coverage is a single global figure per `as_of_date` (fraction of every `(store, category)` pair ever seen that has a fresh observation today) applied to every row that run — a deliberate simplification versus the fixed-basket's per-scope coverage. Writes 60 rows/day (11 categories + 1 overall + 3 stores, × 4 periods, × 1 price basis).
 
 ### `fuel/`
 - **`dgeg.py`** — scrapes DGEG's public "Preço Médio Diário" page via Playwright (select fuel type, click search, regex-parse the resulting HTML table row-by-row: `ROW_RE`). No `robots.txt` exists on this subdomain (both a plain request and a browser navigation time out — no route configured), so the usual `RobotsChecker` is skipped; the page's own footer text (explicitly free for non-commercial use) is the operative permission instead.
@@ -185,6 +186,8 @@ Fetches Portugal's HICP item weights from Eurostat's `prc_hicp_inw` dataset (JSO
 ---
 
 ## 6. Methodology (as implemented)
+
+This section describes the **fixed-basket** family specifically; the **category-average** family (§5's `category_compute.py`) follows the same base-date/gap-handling philosophy but skips straight to `weighted_overall_index` at every level (no elementary-product layer to Jevons-aggregate) and only ever emits `price_basis='effective'` — see §5 for its full methodology rather than repeating it here.
 
 Mirrors the HICP elementary-aggregate approach, implemented as plain Python (`metrics/`) rather than SQL views — a deliberate, documented deviation from the spec's stated general preference for "computation lives in SQL," made because the per-listing base-date lookup and gap-handling logic (§6 below) were more legible as ordinary Python than as window-function SQL.
 
@@ -322,22 +325,22 @@ Anti-bot / respectful-scraping safeguards actually in place: persistent Playwrig
 | product_listings | 54 |
 | price_snapshots | 162 (3 days × 54) |
 | category_observations | 99 |
-| inflation_metrics | 360 (3 days × 120) |
+| inflation_metrics | 420 (3 days × 120 fixed-basket, + 60 category-avg for the 1 day it's been running) |
 | scrape_runs | 49 |
 | hicp_weights_cache | 1,398 |
 | fuel_prices | 6 (2 days × 3) |
 
-Test suite: 47 tests, all pure-function/unit-level, no live network dependency, all passing.
+Test suite: 53 tests, all pure-function/unit-level, no live network dependency, all passing.
 
-Phases per the build spec: **Phase 1 (foundation + multi-store ingest) — done.** **Phase 2 (metrics + dynamic crawl) — mostly done**: fixed-basket compute is built, scheduled, and alerting; the *category-average* index (reading from `category_observations` into a `category_avg` row in `inflation_metrics`) is not yet built, only its data collection is. **Phase 3 (web app) — not started.**
+Phases per the build spec: **Phase 1 (foundation + multi-store ingest) — done. Phase 2 (metrics + dynamic crawl) — done**: both index families now compute daily in the same job (`metrics/compute.py` + `metrics/category_compute.py`), scheduled, alerting. **Phase 3 (web app) — not started**, the next milestone.
 
 ---
 
 ## 14. Open items worth deciding on before/alongside Phase 3
 
-- Category-average index compute (the other half of Phase 2, per the spec's "two index families in parallel" decision).
 - Missing-product ≥3-day alert, and a `scrape_runs`-equivalent observability table for fuel.
 - A decision on Phase 3's data-access pattern (backend-holds-service-key vs. scoped anon key + RLS) — see §12.
 - Scheduling `weights/eurostat.py` (currently manual-only).
+- Category-average per-row coverage (currently one global figure per `as_of_date` — see §5's `category_compute.py` note) is a candidate refinement, not a blocker.
 
-**Resolved since this doc was first written**: job-level `timeout-minutes` added to all three workflows; Auchan's promo-price selector verified live and fixed (was silently matching nothing); unexpected/DB-write failures during any scrape or compute run now reach Telegram instead of failing silently past `scrape_runs`/alerting; `scrape.yml`/`fuel.yml` now run twice daily (06:00 + 10:00 UTC same-day retry), skipping stores block-detected on the first pass via the new `scrape_runs.blocked` column (migration `0005`).
+**Resolved since this doc was first written**: job-level `timeout-minutes` added to all three workflows; Auchan's promo-price selector verified live and fixed (was silently matching nothing); unexpected/DB-write failures during any scrape or compute run now reach Telegram instead of failing silently past `scrape_runs`/alerting; `scrape.yml`/`fuel.yml` now run twice daily (06:00 + 10:00 UTC same-day retry), skipping stores block-detected on the first pass via the new `scrape_runs.blocked` column (migration `0005`); **Phase 2 is now fully complete** — the category-average index compute (`metrics/category_compute.py`) is built, tested, verified live, and scheduled in the same daily job as the fixed-basket compute.

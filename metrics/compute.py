@@ -242,6 +242,7 @@ def main() -> None:
     from alerting.base import Notifier
     from alerting.console import ConsoleNotifier
     from alerting.telegram import TelegramNotifier
+    from metrics.category_compute import compute_category_avg_metrics_for_date
     from scraper.db import lisbon_scrape_date
 
     load_dotenv()
@@ -263,19 +264,25 @@ def main() -> None:
 
     # Spec §8: "compute job error / missing daily metrics" is an alertable
     # incident, same tier as a failed scrape — a stale index is silent
-    # otherwise, since nothing else re-checks that today's row landed.
+    # otherwise, since nothing else re-checks that today's row landed. Both
+    # index families run in this one job/alert (spec §0: "computed in
+    # parallel") rather than a separate workflow for category_avg.
     try:
         rows = compute_metrics_for_date(client, as_of_date)
+        category_rows = compute_category_avg_metrics_for_date(client, as_of_date)
     except Exception as exc:
         asyncio.run(notifier.send(f"*Compute job failed* for {as_of_date}:\n{exc}"))
         raise
 
-    print(f"Wrote {len(rows)} inflation_metrics rows for {as_of_date}.")
-    if not rows:
+    print(
+        f"Wrote {len(rows)} fixed-basket + {len(category_rows)} category-avg "
+        f"inflation_metrics rows for {as_of_date}."
+    )
+    if not rows and not category_rows:
         asyncio.run(
             notifier.send(
                 f"*Compute job produced no metrics* for {as_of_date} — "
-                "check basket coverage and today's price_snapshots."
+                "check basket coverage and today's price_snapshots/category_observations."
             )
         )
         sys.exit(1)

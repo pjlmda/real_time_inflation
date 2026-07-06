@@ -5,6 +5,11 @@ on:
     # Same cadence as scrape.yml; DGEG's own reporting lag means "today's"
     # run typically records yesterday's finalized average, not today's.
     - cron: "0 6 * * *"
+    # Same-day retry, 4 hours later — mainly for our-side transient failures
+    # (DB write, network); DGEG's own daily average may not have changed
+    # intraday, but the upsert is idempotent on (fuel_type, scrape_date) so
+    # re-running is harmless either way.
+    - cron: "0 10 * * *"
   workflow_dispatch: {}
 
 concurrency:
@@ -14,6 +19,10 @@ concurrency:
 jobs:
   fuel:
     runs-on: ubuntu-latest
+    # A normal run (3 fuel types, one page) takes ~1-2 minutes; this caps a
+    # hung page.goto/select against DGEG's site well short of GitHub's
+    # 360-minute default.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

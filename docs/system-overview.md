@@ -20,10 +20,11 @@ Two index families are designed in the spec (only one is built so far):
                     ┌─────────────────────────────────────────────┐
                     │   GitHub Actions (scheduled + manual)        │
                     │                                               │
-  06:00 UTC cron →  │  scrape.yml  (matrix: continente/pingo-doce/  │
+  06:00 + 10:00 UTC →│  scrape.yml  (matrix: continente/pingo-doce/  │
                     │               auchan — basket + category)    │──┐
-                    │                                               │  │ workflow_run
-  06:00 UTC cron →  │  fuel.yml    (DGEG national average)          │  │ (on completion)
+                    │               10:00 = same-day retry          │  │ workflow_run
+                    │                                               │  │ (on completion)
+  06:00 + 10:00 UTC →│  fuel.yml    (DGEG national average)          │  │
                     │                                               │  │
                     │  compute.yml (triggered by scrape.yml)   ◄────┘  │
                     └─────────────────────────────────────────────┘
@@ -44,9 +45,9 @@ Three independent GitHub Actions workflows exist (`.github/workflows/`):
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `scrape.yml` | cron `0 6 * * *` + `workflow_dispatch` | Per-store basket scrape + category crawl, 3 parallel matrix jobs |
+| `scrape.yml` | cron `0 6 * * *` + `0 10 * * *` (same-day retry) + `workflow_dispatch` | Per-store basket scrape + category crawl, 3 parallel matrix jobs |
 | `compute.yml` | `workflow_run` on `scrape` completion + `workflow_dispatch` | Runs the Jevons index compute, writes `inflation_metrics` |
-| `fuel.yml` | cron `0 6 * * *` + `workflow_dispatch` | DGEG national fuel average scrape |
+| `fuel.yml` | cron `0 6 * * *` + `0 10 * * *` (same-day retry) + `workflow_dispatch` | DGEG national fuel average scrape |
 
 All three use `astral-sh/setup-uv@v3` + `uv sync --frozen` for a reproducible Python environment (`uv.lock` pinned), and pull `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` (+ `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` where alerting applies) from GitHub Actions repo secrets. `scrape.yml`/`fuel.yml` additionally run `playwright install --with-deps chromium`; `compute.yml` doesn't (it only talks to Supabase, no browser needed).
 
@@ -54,7 +55,7 @@ All three use `astral-sh/setup-uv@v3` + `uv sync --frozen` for a reproducible Py
 
 ## 3. Database schema (Supabase Postgres)
 
-Applied via 3 forward-only, manually-run SQL files in `db/migrations/` (`0001_init_schema.sql`, `0002_widen_hicp_weight_precision.sql`, `0004_fuel_prices.sql` — **note: there is no `0003` file; numbering jumped 0002→0004, seemingly unintentionally, but no migration content is missing**). No migration tool (Alembic/Flyway) is used — each file is applied once by hand through the Supabase SQL editor per the `db/migrations/README.md` convention.
+Applied via forward-only, manually-run SQL files in `db/migrations/` (`0001_init_schema.sql`, `0002_widen_hicp_weight_precision.sql`, `0004_fuel_prices.sql`, `0005_scrape_runs_blocked.sql` — **note: there is no `0003` file; numbering jumped 0002→0004, seemingly unintentionally, but no migration content is missing**). No migration tool (Alembic/Flyway) is used — each file is applied once by hand through the Supabase SQL editor per the `db/migrations/README.md` convention.
 
 ### 3.1 `stores`
 Store registry. `id smallserial PK`, `slug text unique`, `name`, `base_url`, `robots_checked_at timestamptz`, `country default 'PT'`. 4 rows: `continente`, `pingo-doce`, `auchan` (all active), `lidl` (seeded but inactive — no scraper implemented yet).
@@ -78,7 +79,7 @@ Per store × ECOICOP class × day aggregate stats from the *dynamic* category cr
 `id bigserial PK`, `as_of_date date`, `index_family text` (check: `fixed_basket | category_avg` — only `fixed_basket` is ever written today), `period text` (check: `daily | weekly | monthly | yearly`), `dimension text` (check: `overall | category | subcategory | store | brand` — `subcategory`/`brand` are schema-reserved, unused today), `dimension_value text` (e.g. `ALL`, an ECOICOP code, or a store slug), `price_basis text` (check: `headline | effective`), `index_value numeric(10,4)`, `inflation_rate numeric(8,4)` (nullable — only filled once a lookback-period row exists), `n_products int`, `coverage numeric(5,4)`, `computed_at timestamptz`. **Unique `(as_of_date, index_family, period, dimension, dimension_value, price_basis)`**. 360 rows (3 days × 120 rows/day: (11 categories + 1 overall + 3 stores) × 2 price bases × 4 periods = 120).
 
 ### 3.8 `scrape_runs` — observability, drives alerting
-`id bigserial PK`, `started_at`/`finished_at timestamptz`, `store_id → stores.id`, `mode text` (check: `basket | category`), `listings_attempted/ok/failed int`, `status text` (check: `success | partial | failed`, default `success`), `coverage numeric(5,4)`, `error_summary text` (first 5 error reasons, semicolon-joined), `alerted bool default false` (dedup flag — set once a Telegram alert has fired for this run, so nothing re-alerts on it). 49 rows so far; **4 historical runs have been `failed`/`partial`** with coverage as low as 0.0–0.83 (from development/verification, not current steady-state — today's runs are all `success`, coverage 100%).
+`id bigserial PK`, `started_at`/`finished_at timestamptz`, `store_id → stores.id`, `mode text` (check: `basket | category`), `listings_attempted/ok/failed int`, `status text` (check: `success | partial | failed`, default `success`), `coverage numeric(5,4)`, `error_summary text` (first 5 error reasons, semicolon-joined), `alerted bool default false` (dedup flag — set once a Telegram alert has fired for this run, so nothing re-alerts on it), `blocked boolean not null default false` (added in migration `0005` — distinguishes "failed because CAPTCHA/block-detected" from any other failure reason, so the same-day retry, added alongside it, knows to skip a store rather than retry into an active block; see §7). 49 rows so far; **4 historical runs have been `failed`/`partial`** with coverage as low as 0.0–0.83 (from development/verification, not current steady-state — today's runs are all `success`, coverage 100%).
 
 ### 3.9 `hicp_weights_cache`
 Audit snapshot of every Eurostat fetch — append-only, never deduplicated. `id bigserial PK`, `ecoicop2_code`, `weight_year smallint`, `weight numeric(8,4)`, `fetched_at`, `source_dataset default 'prc_hicp_inw'`. 1398 rows — this is large because Eurostat's `prc_hicp_inw` response includes *every* PT COICOP code (hundreds), not just the 11 we've seeded; all of them get cached for audit purposes, only the 11 matching `categories.ecoicop2_code` actually get their weight copied into `categories`.
@@ -108,21 +109,22 @@ fuel_prices — fully standalone, no FKs
 
 ## 4. Pipelines in detail
 
-### 4.1 `scrape.yml` — daily basket + category ingest
+### 4.1 `scrape.yml` — daily basket + category ingest, twice
 - Matrix job, `fail-fast: false`, one job per store (`continente`, `pingo-doce`, `auchan`), each running two sequential steps: `scraper.run --mode basket` then `--mode category`.
 - `concurrency: {group: scrape, cancel-in-progress: false}` — a still-running scrape blocks (doesn't cancel) the next scheduled trigger.
-- Cron `"0 6 * * *"` is UTC-fixed; Lisbon's actual local run time drifts ±1h across the DST transition (accepted trade-off, documented in the workflow file — no seasonal cron split).
-- **No `timeout-minutes` set on the job** — see §8 Bottlenecks.
+- Fires **twice daily**: `"0 6 * * *"` (primary) and `"0 10 * * *"` (a same-day retry, 4 hours later). Both cron times are UTC-fixed; Lisbon's actual local run time drifts ±1h across the DST transition (accepted trade-off, documented in the workflow file — no seasonal cron split).
+- The 10:00 run needs no special retry code: `listing_already_captured_today`/`category_already_captured_today` already make the loop skip anything that landed on the first pass, so it naturally only retries what's still missing. A store that was CAPTCHA/block-detected on the first run is skipped entirely on the retry (`scraper/base.py` checks `scrape_runs.blocked` for today via `get_latest_run`) rather than retried into an active block — see §7/§8.
+- `timeout-minutes: 30` on the job (added after this doc's first pass flagged its absence).
 
-### 4.2 `compute.yml` — daily index compute
-- Single job, triggered by `workflow_run` on `scrape`'s completion (any conclusion — not gated on success, so a partial scrape still triggers a compute pass over whatever did land) plus manual dispatch.
-- Runs `python -m metrics.compute`, which as of the most recent commit (`8d25d9d`) alerts via the same Telegram notifier on a hard exception or a zero-row result.
-- No Playwright step — this job only talks to Supabase.
+### 4.2 `compute.yml` — index compute, after every scrape completion
+- Single job, triggered by `workflow_run` on `scrape`'s completion (any conclusion — not gated on success, so a partial scrape still triggers a compute pass over whatever did land) plus manual dispatch. Since `scrape.yml` now runs twice daily, this effectively runs twice daily too.
+- Runs `python -m metrics.compute`, which alerts via the same Telegram notifier on a hard exception or a zero-row result.
+- No Playwright step — this job only talks to Supabase. `timeout-minutes: 10`.
 
-### 4.3 `fuel.yml` — daily fuel scrape
-- Single job, cron `"0 6 * * *"` + manual dispatch, runs `python -m fuel.run --source dgeg`.
-- As of commit `dec224e`, also wired to the same Telegram notifier.
-- Independent of `scrape`/`compute` — no `workflow_run` relationship either way.
+### 4.3 `fuel.yml` — daily fuel scrape, twice
+- Cron `"0 6 * * *"` + `"0 10 * * *"` (same same-day-retry pattern as `scrape.yml`) + manual dispatch, runs `python -m fuel.run --source dgeg`.
+- Wired to the same Telegram notifier. `timeout-minutes: 10`.
+- Independent of `scrape`/`compute` — no `workflow_run` relationship either way. No block-detection concept exists for fuel (DGEG has no anti-bot posture to speak of), so the retry here is unconditional — the per-fuel-type upsert is idempotent on `(fuel_type, scrape_date)` regardless.
 
 ### 4.4 Manual/local entrypoints
 | Command | What it does |
@@ -150,7 +152,7 @@ fuel_prices — fully standalone, no FKs
 - **`continente.py` / `pingodoce.py` / `auchan.py`** — one concrete scraper per store, each implementing `fetch_listing`. All three are **DOM-primary** (not JSON-LD-primary, despite the general spec preference) because each site's DOM exposes the promo/regular price pair and price-per-unit that JSON-LD lacks. Continente additionally falls back to JSON-LD if the DOM selectors miss. Notable per-store quirks:
   - *Continente*: price split across adjacent DOM nodes, tolerant regex; `parse_price_per_unit` handles `"€/lt"`, `"€/kg"`, `"€/doz"`, etc.
   - *Pingo Doce*: **no EAN exposed anywhere** on the page (cross-store matches rely on `match_method='manual'` curation); `parse_unit_measure` has a weight-only fallback (`fallback_price / weight`) for fresh/counter items (butcher, cheese) that show only a bare weight instead of an embedded price-per-unit — a real bug found and fixed mid-project.
-  - *Auchan*: cleanest EAN exposure of the three (JSON-LD `gtin` + `data-ean` attribute + visible text, redundantly). Its promo/regular-price selector (`.auc-price__list .value`) is **inferred, not confirmed against a live promo'd product** — flagged in the module docstring as needing verification once one is observed.
+  - *Auchan*: cleanest EAN exposure of the three (JSON-LD `gtin` + `data-ean` attribute + visible text, redundantly). Its promo/regular-price selector was originally an inferred guess (`.auc-price__list .value`) that, verified live on 2026-07-06, turned out to **never match anything real** — meaning `is_promotion` had silently always been `False` for every Auchan listing. Fixed: the real "was" price is `.auc-price__stricked .strike-through.value`; promo status is read from `.auc-price__promotion--show` specifically, since the bare `.auc-price__promotion` badge div is a static template present on every page (promo'd or not) — checking its mere presence, as the original code effectively would have if it had targeted the right class at all, would have produced false positives.
 - **`continente_category.py` / `pingodoce_category.py` / `auchan_category.py`** — category-listing crawlers. Continente/Auchan crawl directly-curated category URLs (allowed by robots.txt). Pingo Doce instead enumerates its ~15,600-URL product sitemap and filters by `path_prefix`/`keywords`/`exclude_keywords` per category (its own category navigation is entirely disallowed `cgid` search URLs) — sitemap fetch is cached once per crawler-instance run to avoid 11 redundant multi-MB refetches.
 - **`run.py`** — CLI entrypoint wiring config → scraper/crawler class → `SupabaseWriter` → `TelegramNotifier`/`ConsoleNotifier` fallback. Used by both local dev and `scrape.yml`.
 
@@ -199,9 +201,10 @@ Mirrors the HICP elementary-aggregate approach, implemented as plain Python (`me
 
 1. **06:00 UTC** (approx.; drifts ±1h across DST): `scrape.yml` and `fuel.yml` fire in parallel. Each of the 3 grocery stores runs its basket scrape then its category crawl, sequentially, within its own matrix job — genuinely parallel *across* stores, never parallel *within* a store (spec §7's "1 tab per store, stores in parallel at most").
 2. Each listing/category already captured for today's Lisbon calendar date is skipped (idempotent same-day cache) — safe to re-run any workflow manually without creating duplicate rows (upsert on the relevant unique constraint).
-3. On `scrape.yml`'s completion (any conclusion), `compute.yml` fires and (re)computes all 120 `inflation_metrics` rows for today — this makes a manual re-run of `compute.yml` always safe too (idempotent upsert on `(as_of_date, index_family, period, dimension, dimension_value, price_basis)`).
-4. `index_value = 100` from day 1 for every listing/scope (base = its own start date). Daily `inflation_rate` starts appearing after 2 days of history; weekly after 7; monthly after 30; yearly after 365 — no code change needed at any of those milestones, it's purely a function of how much history exists.
-5. Coverage is currently 100% across all three stores on every recent run — no missing products, no low-coverage alerts firing in steady-state.
+3. **10:00 UTC**: both workflows fire again — a same-day retry, relying entirely on the same idempotent skip from step 2 to only touch whatever didn't land at 06:00 (no separate retry logic needed). A store that was CAPTCHA/block-detected at 06:00 is skipped at 10:00 rather than retried into an active block.
+4. On each `scrape.yml` completion (any conclusion, so twice a day), `compute.yml` fires and (re)computes all 120 `inflation_metrics` rows for today — this makes a manual re-run of `compute.yml` always safe too (idempotent upsert on `(as_of_date, index_family, period, dimension, dimension_value, price_basis)`).
+5. `index_value = 100` from day 1 for every listing/scope (base = its own start date). Daily `inflation_rate` starts appearing after 2 days of history; weekly after 7; monthly after 30; yearly after 365 — no code change needed at any of those milestones, it's purely a function of how much history exists.
+6. Coverage is currently 100% across all three stores on every recent run — no missing products, no low-coverage alerts firing in steady-state.
 
 ---
 
@@ -236,16 +239,17 @@ Anti-bot / respectful-scraping safeguards actually in place: persistent Playwrig
 ### The three grocery retailers (Continente, Pingo Doce, Auchan)
 - **Selector/DOM drift**: every price extraction depends on hand-verified CSS selectors against a snapshot-in-time of each site's markup. A redesign silently breaks extraction — the code fails loudly (`FetchFailed`, alerted via Telegram) rather than writing garbage, which is the right failure mode, but there's no automated detection *before* it happens.
   - *Mitigation in place*: Continente falls back to JSON-LD if DOM selectors miss. *Further mitigation to consider*: a lightweight canary check (e.g. assert a known product's price is within a plausible range) would catch silent selector drift faster than waiting for coverage to visibly drop.
-- **Unverified selectors**: Auchan's promo-price selector is explicitly flagged in code as inferred, not confirmed against a real live promotion. It will either work correctly or silently mis-attribute promo status the first time a real Auchan promo is scraped — worth a deliberate spot-check rather than waiting to discover it accidentally.
+- **Unverified selectors (now resolved for Auchan)**: Auchan's promo-price selector was inferred and unconfirmed; live verification on 2026-07-06 found it was actually wrong (matched nothing, ever) and fixed it against real promoted products (see §5). The general risk this category describes — an inferred-but-unverified selector silently doing nothing until spot-checked — is worth remembering as a pattern when curating any future store.
 - **IP-based blocking**: GitHub Actions runners share IP ranges across all GitHub customers; a retailer's anti-bot vendor (Akamai/Cloudflare/etc.) could block that range independent of anything this project does. `PROXY_URL` exists as an escape hatch but is unused.
 - **Inconsistent EAN exposure**: Pingo Doce exposes no EAN at all, forcing manual cross-store matching for its listings (more curation labor, more human-error surface than the EAN-matched stores).
 - **Stale/delisted URLs**: already observed — some sitemap-sourced Continente URLs 200-redirect to the homepage instead of 404ing, silently returning no `Product` JSON-LD. Mitigation already adopted: always verify JSON-LD `@type == "Product"`, not just HTTP status, during curation.
 - **Terms-of-service risk**: scraping is inherently in tension with most retailers' ToS regardless of how respectfully it's done (rate limits, stealth patches, robots.txt compliance don't make it explicitly *authorized*). This is a standing legal/reputational exposure, not a bug — worth keeping scraping volume low and non-disruptive as the basket grows, and revisiting if this project's scope or visibility changes materially.
 
 ### GitHub Actions
-- **No job-level timeout set** on any of the 3 workflows — see §10 (Bottlenecks) for why this matters.
+- **Job-level timeouts (resolved)**: all 3 workflows now set `timeout-minutes` (30 for `scrape`, 10 for `compute`/`fuel`) — previously GitHub's 360-minute default was the only cap.
 - **Ephemeral runners**: every run is a fresh VM. The Playwright "persistent browser context" (`launch_persistent_context`, meant to build up trust/cookies over time per the anti-bot design) **never actually persists across scheduled CI runs** — only within a single run, and locally across manual runs on the same machine. This undermines part of the intended anti-bot benefit; see §11 (Inefficiencies).
-- **Cron drift**: fixed-UTC cron means the *actual* Lisbon-local run time shifts ±1h across DST transitions twice a year (accepted trade-off, not a bug).
+- **Cron drift**: fixed-UTC cron means the *actual* Lisbon-local run time shifts ±1h across DST transitions twice a year (accepted trade-off, not a bug) — now applies to both the 06:00 and 10:00 (same-day retry) triggers.
+- **Twice-daily runs double the request volume** against each retailer (still low absolute volume — 1 tab/store, jittered delays — but worth remembering as basket size grows) and double the number of Telegram alerts a persistent problem can generate per day, since fuel has no per-incident dedup (see the alerts table in §7/§8).
 - **`workflow_run` coupling**: `compute.yml` depends on `scrape.yml`'s workflow-level completion event; if `scrape.yml` itself fails to trigger (e.g., YAML syntax error, GitHub platform incident), `compute.yml` never fires either, with no independent fallback cron.
 - **Actions cache service outages**: already observed once in practice (`Failed to save/restore: cache service responded with 400`) — non-fatal (falls back to a fresh dependency install), just slower.
 
@@ -277,7 +281,7 @@ Anti-bot / respectful-scraping safeguards actually in place: persistent Playwrig
 
 ## 10. Bottlenecks
 
-- **No `timeout-minutes` on any workflow job.** GitHub's default cap is 360 minutes (6 hours) per job. A single hung `page.goto(..., wait_until="networkidle")` call (a real risk — "networkidle" can wait indefinitely on a page with long-polling/analytics scripts) could occupy the `scrape`/`fuel` concurrency slot for hours, delaying or entirely skipping the next scheduled trigger (since `cancel-in-progress: false` queues rather than cancels).
+- **(Resolved) `timeout-minutes` now set on all workflow jobs** — previously GitHub's 360-minute default was the only cap, and a single hung `page.goto(..., wait_until="networkidle")` call could have occupied the `scrape`/`fuel` concurrency slot for hours, delaying or skipping the next scheduled trigger (`cancel-in-progress: false` queues rather than cancels). With two scheduled triggers a day now (06:00 + 10:00 same-day retry), a hung run blocking the concurrency slot would risk colliding with its own retry — another reason the timeout cap matters more now than before.
 - **Fully sequential, deliberately slow scraping within a store**: one tab, one listing at a time, 2–5s (+occasional 5–15s) jittered delay between each — by design (anti-bot posture), but it means basket-scrape wall-clock time scales linearly with listing count. At 12–20 listings/store today this is a few minutes; at a few hundred (a plausible future basket size) this becomes tens of minutes per store, still within Action limits but worth watching.
 - **Pingo Doce's category crawl** is the most request-heavy path of the three stores: it visits up to 15 individual product pages per category (`SAMPLE_CAP`) across 11 categories, on top of its ~15,600-URL sitemap fetch (now cached once per run, previously refetched per category) and its 12 fixed-basket listings — meaningfully more total requests per day than either Continente or Auchan's direct category-page crawl (which loads one listing page per category, not N individual product pages).
 - **`workflow_run` chain latency**: `compute.yml` only starts after `scrape.yml`'s *entire* matrix (all 3 stores) reports completion — a single slow/stuck store job delays compute for all stores' data, not just its own.
@@ -300,7 +304,7 @@ Anti-bot / respectful-scraping safeguards actually in place: persistent Playwrig
 - **`SUPABASE_SERVICE_KEY` is a full-access, RLS-bypassing credential**, held in GitHub Actions secrets and local `.env`. It is the single highest-value secret in this system — anyone who obtains it can read or write every table, including deleting `price_snapshots` history (the append-only guarantee is enforced by convention/code discipline, not by a database-level permission that would stop a holder of this key from doing it anyway). Recommend: rotate it if there's ever any doubt it was exposed, and keep it out of logs (none of the current scripts print it, which is correct — keep that invariant as code changes).
 - **Credentials were shared in plaintext through this chat session** during initial setup. `.env` itself is correctly gitignored and was never committed, but the literal key values now also exist in this conversation's own transcript/logs, which is a distinct exposure surface from "is it in git." Worth rotating the Supabase service key and Telegram bot token at some point as a hygiene measure, independent of any specific incident, precisely because they've been pasted in plaintext at least once.
 - **No Row Level Security policies exist at all.** Currently irrelevant (only the trusted service key is ever used, never a browser-facing anon key), but this is a decision to revisit deliberately, not by default, once Phase 3 exists — a public FastAPI/Next.js app must either (a) go through a backend that itself holds the service key and only exposes curated read-only endpoints (recommended), or (b) use a scoped anon key with explicit RLS read-only policies restricted to non-sensitive tables. Shipping Phase 3 against the service key directly, or without RLS, would expose full write access to anyone who inspects the frontend's network requests.
-- **No job-level timeouts (§10) is also a minor availability/security-adjacent gap** — a hung job holding a concurrency slot for up to 6 hours is a (low-severity, self-inflicted) denial-of-service against the project's own pipeline.
+- **(Resolved) Job-level timeouts** now cap what was previously an unbounded (low-severity, self-inflicted) denial-of-service risk against the project's own pipeline — see §10.
 - **Supply-chain exposure via CI dependency installation.** Every workflow run does `uv sync --frozen` (good — pinned via `uv.lock`) and `playwright install --with-deps chromium`; a compromised transitive PyPI package would execute with access to the run's secrets (`SUPABASE_SERVICE_KEY`, `TELEGRAM_TOKEN`). `--frozen` meaningfully limits this to "whatever was already in the lockfile," but the lockfile itself should get periodic review/update (e.g. via Dependabot) rather than staying static indefinitely, since "frozen" doesn't mean "audited."
 - **DGEG scraping's legal basis is a footer disclaimer, not a formal agreement** — low risk at current (non-commercial, low-traffic) scope, but explicitly noted as something that would need re-evaluating if the project's use case changes (see §9).
 - **General ToS-tension of scraping three retailers' sites** is a standing, non-technical risk category worth keeping in mind as basket size / request volume grows — nothing to "fix" per se, but worth not losing sight of as a design constraint (keep concurrency at 1 tab/store, keep delays realistic, don't chase aggressive coverage at the cost of load).
@@ -333,7 +337,7 @@ Phases per the build spec: **Phase 1 (foundation + multi-store ingest) — done.
 
 - Category-average index compute (the other half of Phase 2, per the spec's "two index families in parallel" decision).
 - Missing-product ≥3-day alert, and a `scrape_runs`-equivalent observability table for fuel.
-- Job-level `timeout-minutes` on all three workflows.
 - A decision on Phase 3's data-access pattern (backend-holds-service-key vs. scoped anon key + RLS) — see §12.
 - Scheduling `weights/eurostat.py` (currently manual-only).
-- Auchan promo-selector verification against a real live promotion.
+
+**Resolved since this doc was first written**: job-level `timeout-minutes` added to all three workflows; Auchan's promo-price selector verified live and fixed (was silently matching nothing); unexpected/DB-write failures during any scrape or compute run now reach Telegram instead of failing silently past `scrape_runs`/alerting; `scrape.yml`/`fuel.yml` now run twice daily (06:00 + 10:00 UTC same-day retry), skipping stores block-detected on the first pass via the new `scrape_runs.blocked` column (migration `0005`).

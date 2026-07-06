@@ -7,6 +7,12 @@ on:
     # across the DST transition. Acceptable for a daily job with no hard
     # latency requirement — not worth two seasonal cron entries.
     - cron: "0 6 * * *"
+    # Same-day retry, 4 hours later. The idempotent same-day skip
+    # (listing_already_captured_today / category_already_captured_today)
+    # means this naturally only touches whatever didn't land the first time
+    # — no separate retry code needed. A store block-detected on the first
+    # run is skipped here rather than retried into it (see scraper/base.py).
+    - cron: "0 10 * * *"
   workflow_dispatch: {}
 
 concurrency:
@@ -16,6 +22,12 @@ concurrency:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    # Generous headroom over the worst observed case (Pingo Doce's category
+    # crawl: up to 15 individual product pages x 11 categories, each with a
+    # jittered 2-5s+ delay) — without this, GitHub's default 360-minute cap
+    # is the only limit, and a hung page.goto(wait_until="networkidle") could
+    # occupy the `scrape` concurrency slot for hours, delaying the next run.
+    timeout-minutes: 30
     strategy:
       # Each store scrapes in its own parallel job — never parallel *within*
       # a store (single tab per run, enforced inside BaseScraper.run), but

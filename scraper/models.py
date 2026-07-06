@@ -41,9 +41,10 @@ class RunResult:
     attempted: int
     ok: int
     failed: int
-    status: str  # 'success' | 'partial' | 'failed'
+    status: str  # 'success' | 'partial' | 'failed' | 'skipped' (skipped never persists to DB)
     coverage: float
     error_summary: str | None
+    blocked: bool = False
 
 
 class BlockDetected(Exception):

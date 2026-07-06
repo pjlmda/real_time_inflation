@@ -17,6 +17,9 @@ class FakeQuery:
     def limit(self, n):
         return self
 
+    def order(self, col, desc=False):
+        return self
+
     def execute(self):
         self.table.calls.append(self)
         if self.op == "select":

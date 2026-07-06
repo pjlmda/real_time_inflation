@@ -11,7 +11,7 @@ from playwright.async_api import BrowserContext, Page, async_playwright
 
 from alerting.base import Notifier
 from scraper.antibot import RobotsChecker, apply_stealth, sleep_jitter, with_backoff
-from scraper.db import SupabaseWriter
+from scraper.db import SupabaseWriter, is_same_lisbon_day
 from scraper.models import BlockDetected, FetchFailed, Listing, RunResult, ScrapedPrice
 from scraper.store_config import StoreConfig
 
@@ -54,6 +54,28 @@ class BaseScraper(ABC):
 
     async def run(self, mode: str = "basket") -> RunResult:
         store_id = self.db.get_store_id(self.config.slug)
+
+        # scrape.yml now runs twice daily (a same-day retry a few hours after the
+        # first); don't retry into a store that was explicitly block-detected
+        # earlier today — that's exactly the "loop into an active block" spec §7
+        # warns against, just spread across two runs instead of one. A failure
+        # for any other reason (site hiccup, DB error) still retries normally.
+        latest = self.db.get_latest_run(store_id, mode)
+        if latest and latest.get("blocked") and is_same_lisbon_day(latest["started_at"]):
+            print(
+                f"Skipping {self.config.name} {mode} run — blocked earlier today, "
+                "waiting for tomorrow's scheduled run instead of retrying into it."
+            )
+            return RunResult(
+                run_id=-1,
+                attempted=0,
+                ok=0,
+                failed=0,
+                status="skipped",
+                coverage=1.0,
+                error_summary="skipped: blocked earlier today",
+            )
+
         robots = RobotsChecker(self.config.base_url, self.config.user_agent)
         self.db.update_robots_checked(store_id)
         delay = max(
@@ -131,6 +153,7 @@ class BaseScraper(ABC):
             status=status,
             coverage=coverage,
             error_summary="; ".join(error_reasons[:5]) if error_reasons else None,
+            blocked=blocked,
         )
 
         db_error: Exception | None = None

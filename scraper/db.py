@@ -24,6 +24,17 @@ def lisbon_scrape_date() -> str:
     return datetime.now(LISBON_TZ).date().isoformat()
 
 
+def is_same_lisbon_day(iso_timestamp: str) -> bool:
+    """Whether a stored UTC timestamp (e.g. `scrape_runs.started_at`) falls on
+    today's Lisbon calendar date — used to decide if a same-day retry should
+    skip a store that was blocked earlier today, without a `scrape_date`
+    column on `scrape_runs` itself to compare against directly."""
+    dt = datetime.fromisoformat(iso_timestamp)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(LISBON_TZ).date().isoformat() == lisbon_scrape_date()
+
+
 class SupabaseWriter:
     def __init__(self, client):
         self.client = client
@@ -81,6 +92,21 @@ class SupabaseWriter:
         )
         return resp.data[0]["id"]
 
+    def get_latest_run(self, store_id: int, mode: str) -> dict | None:
+        """Most recent scrape_runs row for this store+mode (any date) — used to
+        decide whether a same-day retry should skip a store blocked earlier
+        today (spec §7: don't retry into an active block)."""
+        resp = (
+            self.client.table("scrape_runs")
+            .select("blocked, started_at")
+            .eq("store_id", store_id)
+            .eq("mode", mode)
+            .order("started_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+
     def finish_run(self, result: RunResult) -> None:
         self.client.table("scrape_runs").update(
             {
@@ -91,6 +117,7 @@ class SupabaseWriter:
                 "status": result.status,
                 "coverage": result.coverage,
                 "error_summary": result.error_summary,
+                "blocked": result.blocked,
             }
         ).eq("id", result.run_id).execute()
 

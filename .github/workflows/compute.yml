@@ -13,6 +13,9 @@ concurrency:
 jobs:
   compute:
     runs-on: ubuntu-latest
+    # No browser involved (Supabase reads/writes only) — a normal run takes
+    # seconds; this is just a cap against a hung request or infinite retry.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

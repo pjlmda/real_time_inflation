@@ -14,6 +14,14 @@ class FakeQuery:
         self.filters.append(("eq", col, val))
         return self
 
+    def gte(self, col, val):
+        self.filters.append(("gte", col, val))
+        return self
+
+    def lte(self, col, val):
+        self.filters.append(("lte", col, val))
+        return self
+
     def limit(self, n):
         return self
 

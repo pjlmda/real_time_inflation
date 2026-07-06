@@ -2,7 +2,12 @@ import math
 
 import pytest
 
-from metrics.formulas import inflation_rate, jevons_class_index, weighted_overall_index
+from metrics.formulas import (
+    inflation_rate,
+    jevons_class_index,
+    moving_average,
+    weighted_overall_index,
+)
 
 
 def test_jevons_class_index_equal_weights_is_plain_geometric_mean():
@@ -53,3 +58,16 @@ def test_inflation_rate_positive_and_negative():
 def test_inflation_rate_rejects_zero_base():
     with pytest.raises(ValueError):
         inflation_rate(100.0, 0.0)
+
+
+def test_moving_average_of_single_value_is_itself():
+    assert moving_average([100.0]) == pytest.approx(100.0)
+
+
+def test_moving_average_matches_hand_computed_value():
+    assert moving_average([98.0, 100.0, 102.0]) == pytest.approx(100.0)
+
+
+def test_moving_average_rejects_empty_list():
+    with pytest.raises(ValueError):
+        moving_average([])

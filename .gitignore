@@ -16,10 +16,11 @@ __pycache__/
 playwright-report/
 test-results/
 
-# Node / Next.js (Phase 3, pre-empted)
+# Node / Next.js (Phase 3)
 node_modules/
 .next/
 web/.env.local
+*.tsbuildinfo
 
 # Editor / OS
 .vscode/

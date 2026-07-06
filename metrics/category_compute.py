@@ -46,7 +46,7 @@ import os
 from collections import defaultdict
 from datetime import date, timedelta
 
-from metrics.formulas import inflation_rate, weighted_overall_index
+from metrics.formulas import inflation_rate, moving_average, weighted_overall_index
 
 PERIOD_LOOKBACK_DAYS = {"daily": 1, "weekly": 7, "monthly": 30, "yearly": 365}
 
@@ -102,6 +102,30 @@ def _existing_index(client, as_of_date: str, period: str, dimension: str, dimens
     return float(resp.data[0]["index_value"]) if resp.data else None
 
 
+def _recent_daily_indices(
+    client, as_of_date: str, dimension: str, dimension_value: str, days: int = 6
+) -> list[float]:
+    """Prior `days` days of this scope's raw daily index_value — same
+    expanding-then-7-day moving-average building block used by
+    metrics/compute.py's fixed-basket family."""
+    start_date = (date.fromisoformat(as_of_date) - timedelta(days=days)).isoformat()
+    end_date = (date.fromisoformat(as_of_date) - timedelta(days=1)).isoformat()
+    resp = (
+        client.table("inflation_metrics")
+        .select("index_value")
+        .eq("index_family", "category_avg")
+        .eq("period", "daily")
+        .eq("dimension", dimension)
+        .eq("dimension_value", dimension_value)
+        .eq("price_basis", "effective")
+        .gte("as_of_date", start_date)
+        .lte("as_of_date", end_date)
+        .order("as_of_date")
+        .execute()
+    )
+    return [float(r["index_value"]) for r in resp.data]
+
+
 def _write_index_and_rates(
     client,
     as_of_date: str,
@@ -121,10 +145,14 @@ def _write_index_and_rates(
             "dimension_value": dimension_value,
             "price_basis": "effective",
             "index_value": round(index_value, 4),
+            "index_value_ma7": None,
             "inflation_rate": None,
             "n_products": n_products,
             "coverage": round(coverage, 4),
         }
+        if period == "daily":
+            history = _recent_daily_indices(client, as_of_date, dimension, dimension_value)
+            row["index_value_ma7"] = round(moving_average(history + [index_value]), 4)
         past_index = _existing_index(client, as_of_date, period, dimension, dimension_value)
         if past_index is not None:
             row["inflation_rate"] = round(inflation_rate(index_value, past_index), 4)

@@ -36,3 +36,14 @@ def inflation_rate(current: float, base: float) -> float:
     if base == 0:
         raise ValueError("base must be non-zero")
     return (current / base - 1) * 100
+
+
+def moving_average(values: list[float]) -> float:
+    """Plain mean — used as an expanding-then-7-day-rolling smoothing of the
+    daily index_value series (spec §6: "raw daily is noisy from rounding/
+    promos"). Callers pass however many days of history exist (1 to 7), so
+    this works the same on day 1 (average of 1) as it does once a full
+    7-day window is available."""
+    if not values:
+        raise ValueError("values must be non-empty")
+    return sum(values) / len(values)

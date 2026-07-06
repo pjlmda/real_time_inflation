@@ -53,19 +53,31 @@ async def _main(source: str) -> int:
         print("WARNING: no fuel prices retrieved", file=sys.stderr)
         return 1
 
+    write_errors: list[str] = []
     for fuel_type, row in results.items():
-        upsert_fuel_price(client, fuel_type, row)
-        print(f"{fuel_type}: {row['date']} = {row['price']} {row['unit']}")
+        try:
+            upsert_fuel_price(client, fuel_type, row)
+            print(f"{fuel_type}: {row['date']} = {row['price']} {row['unit']}")
+        except Exception as exc:  # noqa: BLE001 - one fuel type's DB write failing shouldn't
+            # skip the rest, or crash before this reaches Telegram the way an uncaught
+            # exception would.
+            write_errors.append(f"{fuel_type}: {exc}")
+            print(f"WARNING: failed to write {fuel_type} to Supabase: {exc}", file=sys.stderr)
 
-    # Missing fuel types (site down, selector drift) alert via Telegram, same
-    # as the grocery scrapers' coverage-below-threshold alert (spec §8) — no
-    # scrape_runs table for fuel yet, so there's no `alerted` dedup here.
-    if len(results) < 3:
-        missing = ALL_FUEL_TYPES - set(results)
-        await notifier.send(
-            f"*Fuel scrape partial* (dgeg)\nMissing fuel types: {', '.join(sorted(missing))}"
-        )
-        print(f"WARNING: missing fuel types: {missing}", file=sys.stderr)
+    # Missing fuel types (site down, selector drift) or a DB write failure both
+    # alert via Telegram, same as the grocery scrapers' coverage-below-threshold
+    # alert (spec §8) — no scrape_runs table for fuel yet, so there's no
+    # `alerted` dedup here.
+    missing = ALL_FUEL_TYPES - set(results)
+    if missing or write_errors:
+        lines = []
+        if missing:
+            lines.append(f"Missing fuel types: {', '.join(sorted(missing))}")
+        if write_errors:
+            lines.append("DB write failed for: " + "; ".join(write_errors))
+        await notifier.send("*Fuel scrape partial* (dgeg)\n" + "\n".join(lines))
+        if missing:
+            print(f"WARNING: missing fuel types: {missing}", file=sys.stderr)
         return 1
 
     return 0

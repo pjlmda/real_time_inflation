@@ -87,7 +87,17 @@ class CategoryCrawlerBase(ABC):
             self.config.delay_seconds_max,
         )
 
-        run_id = self.db.start_run(store_id, mode="category")
+        try:
+            run_id = self.db.start_run(store_id, mode="category")
+        except Exception as exc:
+            # No run_id means finish_run()/mark_alerted() have nothing to update — still
+            # get a Telegram signal out before re-raising, so GitHub Actions' native
+            # failure email isn't the only trace of a DB outage at the start of a run.
+            await self.notifier.send(
+                f"*{self.config.name}* category run FAILED TO START — could not write to "
+                f"scrape_runs (database unreachable?): {exc}"
+            )
+            raise
         attempted = ok = failed = 0
         error_reasons: list[str] = []
 
@@ -134,22 +144,42 @@ class CategoryCrawlerBase(ABC):
             coverage=coverage,
             error_summary="; ".join(error_reasons[:5]) if error_reasons else None,
         )
-        self.db.finish_run(result)
 
-        if status in ("failed", "partial") or coverage < COVERAGE_ALERT_THRESHOLD:
-            await self._alert(result)
+        db_error: Exception | None = None
+        try:
+            self.db.finish_run(result)
+        except Exception as exc:  # noqa: BLE001 - a DB write failure here shouldn't suppress
+            # the alert below; still notify, then re-raise so the Action step fails and
+            # GitHub's native failure email remains the backup signal.
+            db_error = exc
+
+        if (
+            status in ("failed", "partial")
+            or coverage < COVERAGE_ALERT_THRESHOLD
+            or db_error is not None
+        ):
+            await self._alert(result, db_error=db_error)
+
+        if db_error is not None:
+            raise db_error
 
         return result
 
-    async def _alert(self, result: RunResult) -> None:
+    async def _alert(self, result: RunResult, db_error: Exception | None = None) -> None:
         message = (
             f"*{self.config.name}* category crawl {result.status.upper()}\n"
             f"attempted={result.attempted} ok={result.ok} failed={result.failed} "
             f"coverage={result.coverage:.0%}\n"
             f"{result.error_summary or ''}"
         )
+        if db_error is not None:
+            message += f"\n*DB write failed while finishing this run*: {db_error}"
         await self.notifier.send(message)
-        self.db.mark_alerted(result.run_id)
+        try:
+            self.db.mark_alerted(result.run_id)
+        except Exception:  # noqa: BLE001 - best-effort dedup flag; losing it just risks a
+            # duplicate alert next time, which beats losing the alert entirely.
+            pass
 
 
 def _compute_stats(prices: list[float]) -> CategoryStats:

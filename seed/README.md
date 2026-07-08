@@ -143,3 +143,52 @@ search across both sitemap files, and its category landing page itself
 Rather than force a poor-fit substitute, carrot is 2-store coverage only
 (Continente, Auchan) — the first product in this basket without Pingo Doce
 representation.
+
+**Real code bug found and fixed while verifying the new categories**:
+`scraper/pingodoce_category.py`'s per-product price parsing wasn't wrapped
+in its own try/except (unlike the `page.goto()` call immediately above it)
+— a single malformed `content` attribute (observed live as the literal
+string `"null"` on one product) raised an uncaught `ValueError` that aborted
+the *entire* category's sampling, not just that one product. Fixed by
+wrapping just the parsing block, matching the same "one bad item shouldn't
+sink the whole crawl" philosophy already used one level up.
+
+## Cheapest-tier products for the 11 pre-existing categories
+
+Rather than adding a "cheapest" item to every category at every store
+uniformly, each store+category combination was checked against what was
+already curated — 6 categories already had an own-brand/cheapest-tier
+product at every store carrying them (bread, pasta, milk, eggs, poultry),
+so nothing was added there; adding a near-duplicate would just dilute the
+signal without adding information. The remaining genuine gaps got one
+addition each, selected by **price-per-unit** where package sizes differed,
+not raw price:
+
+- **Rice** (Pingo Doce only — Continente/Auchan already own-brand):
+  Arroz Agulha Europa Pingo Doce, €1.19/kg.
+- **Olive oil** (Auchan only): Azeite Auchan 750ml, €3.60 — Auchan's
+  existing two olive oil listings (Polegar, Oliveira da Serra PET) are
+  both third-party brands with no own-brand alternative until now.
+- **Cheese** (Pingo Doce + Auchan — both existing listings, Limiano and
+  President, are third-party brands, not either store's own): Queijo
+  Flamengo Quartos Pingo Doce (€7.73/0.35kg) and Queijo Auchan Curado
+  Merendeira Light (€7.09, sold as a whole unit not by weight).
+- **Canned fish** (Auchan only — its existing Tenório listing is
+  third-party): Ventresca de Atum Auchan Claro em Azeite, €2.89.
+- **Wine** (all 3 stores — the existing Monte Velho listing is a
+  mid-range branded wine at every store, not any store's own economy
+  line): Cavalo Bravo Tejo (Continente, €2.29, cheapest of ~30 tiles
+  checked by price), Vinho Tinto Tejo Pingo Doce (own-brand, €1.89),
+  Vinho Tinto Fonte do Nico (Auchan, €1.57 — cheapest full 0.75L bottle;
+  smaller-format options existed but weren't package-comparable to the
+  rest of the basket).
+- **Personal care/soap** (all 3 stores — the existing Dove/Ach Brito
+  listings are all name brands): Sabonete Sólido Feno (Continente,
+  €3.44/360g — cheapest solid bar found among ~35 tiles, mostly liquid
+  soap), Sabonete Sólido Leite e Mel Pingo Doce (own-brand, €0.59/90g),
+  Sabonete Polegar Sólido 90g (Auchan, €0.49 — Polegar already used as
+  Auchan's budget olive oil brand too).
+
+11 new listings, verified live: all scraped successfully at 100% coverage,
+prices matched curation research exactly. Basket now at 99 products / 109
+listings across 19 categories.

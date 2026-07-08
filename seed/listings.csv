@@ -97,3 +97,14 @@ tomato_auchan,auchan,https://www.auchan.pt/pt/produtos-frescos/legumes/tomate-pe
 potato_continente,continente,https://www.continente.pt/produto/batata-branca-continente-continente-5454781.html,5454781,5601312883302,ean
 potato_pingodoce,pingo-doce,https://www.pingodoce.pt/home/produtos/frutas-e-vegetais/vegetais/batatas-cebolas-e-alhos/batata-para-cozer-e-assar-embalada-pingo-doce-454634.html,454634,TODO,manual
 potato_auchan,auchan,https://www.auchan.pt/pt/produtos-frescos/legumes/batatas-alho-e-cebola/batata-branca-lavada-kg/220583.html,220583,2885797000000,ean
+rice_pingodoce_cheap,pingo-doce,https://www.pingodoce.pt/home/produtos/mercearia/arroz-massa-e-leguminosas/arroz/arroz-agulha-europa-pingo-doce-651178.html,651178,TODO,manual
+oliveoil_auchan_cheap,auchan,https://www.auchan.pt/pt/alimentacao/mercearia/azeite-oleo-e-vinagre/azeite/azeite-auchan-750ml/4011899.html,4011899,5601002128843,ean
+cheese_pingodoce_cheap,pingo-doce,https://www.pingodoce.pt/home/produtos/charcutaria-e-queijos/queijos/queijo-fatiado-e-bola%E2%80%8B/queijo-flamengo-quartos-pingo-doce-358372.html,358372,TODO,manual
+cheese_auchan_cheap,auchan,https://www.auchan.pt/pt/produtos-frescos/queijaria/queijos-portugueses/queijo-auchan-curado-merendeira-light-un/3094632.html,3094632,5601002114624,ean
+fish_auchan_cheap,auchan,https://www.auchan.pt/pt/alimentacao/mercearia/conservas/atum/ventresca-de-atum-auchan-claro-em-azeite-111%2872%29g/898667.html,898667,8429583006438,ean
+wine_continente_cheap,continente,https://www.continente.pt/produto/cavalo-bravo-tejo-vinho-tinto-cavalo-bravo-4907948.html,4907948,5600390410752,ean
+wine_pingodoce_cheap,pingo-doce,https://www.pingodoce.pt/home/produtos/vinhos/vinho-tinto/vinho-tinto-tejo-pingo-doce-pingo-doce-39203.html,39203,TODO,manual
+wine_auchan_cheap,auchan,https://www.auchan.pt/pt/bebidas-e-garrafeira/garrafeira/vinhos-tintos/vinho-tinto-fonte-do-nico-0.75l/601787.html,601787,5603016000221,ean
+soap_continente_cheap,continente,https://www.continente.pt/produto/sabonete-solido-feno-4784193.html,4784193,5600258596079,ean
+soap_pingodoce_cheap,pingo-doce,https://www.pingodoce.pt/home/produtos/higiene-pessoal-e-beleza/corpo/sabonetes/sabonete-solido-leite-e-mel-pingo-doce-899390.html,899390,TODO,manual
+soap_auchan_cheap,auchan,https://www.auchan.pt/pt/beleza-e-higiene/gel-de-banho-e-sabonete/sabonetes/sabonete-polegar-solido-90g/3594362.html,3594362,3245678671283,ean

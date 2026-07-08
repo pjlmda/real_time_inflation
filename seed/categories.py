@@ -58,6 +58,39 @@ SEED_CATEGORIES = [
         "name_en": "Personal care articles and products",
         "level": 5,
     },
+    {
+        "ecoicop2_code": "01.1.1.2",
+        "name_pt": "Farinhas e outros cereais",
+        "name_en": "Flours and other cereals",
+        "level": 5,
+    },
+    {"ecoicop2_code": "01.1.2.1", "name_pt": "Carne de bovino", "name_en": "Beef and veal", "level": 5},
+    {"ecoicop2_code": "01.1.2.2", "name_pt": "Carne de suíno", "name_en": "Pork", "level": 5},
+    {
+        "ecoicop2_code": "01.1.3.1",
+        "name_pt": "Peixe fresco ou refrigerado",
+        "name_en": "Fresh or chilled fish",
+        "level": 5,
+    },
+    {
+        "ecoicop2_code": "01.1.3.5",
+        "name_pt": "Peixe seco, fumado ou salgado",
+        "name_en": "Dried, smoked or salted fish and seafood",
+        "level": 5,
+    },
+    {"ecoicop2_code": "01.1.4.4", "name_pt": "Iogurte", "name_en": "Yoghurt", "level": 5},
+    {
+        "ecoicop2_code": "01.1.6.1",
+        "name_pt": "Fruta fresca ou refrigerada",
+        "name_en": "Fresh fruit",
+        "level": 5,
+    },
+    {
+        "ecoicop2_code": "01.1.7.1",
+        "name_pt": "Legumes frescos ou refrigerados",
+        "name_en": "Vegetables",
+        "level": 5,
+    },
 ]
 
 

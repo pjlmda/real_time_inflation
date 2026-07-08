@@ -99,3 +99,47 @@ scraper's fallback path silently degraded these to a meaningless
 text and computes `price_per_unit = sales_price / weight` itself; the
 category crawler was updated to fetch the sales price too so it can do the
 same computation instead of skipping these items.
+
+## Basket growth round 3: 8 new categories (flour, beef, pork, fresh fish,
+bacalhau, yoghurt, fresh fruit, vegetables)
+
+Added `01.1.1.2` (flour), `01.1.2.1` (beef and veal), `01.1.2.2` (pork),
+`01.1.3.1` (fresh fish), `01.1.3.5` (dried/salted fish — bacalhau),
+`01.1.4.4` (yoghurt), `01.1.6.1` (fresh fruit: banana/apple/orange/pear —
+one leaf class covers all fresh fruit varieties) and `01.1.7.1` (vegetables:
+onion/carrot/lettuce/tomato/potato). 44 new products/listings, bringing the
+basket to 88 products / 98 listings across 19 ECOICOP categories.
+
+**Deliberate simplification**: potatoes are ECOICOP's own leaf class
+(`01.1.7.2`, distinct from "vegetables other than potatoes") but are folded
+into `01.1.7.1` here rather than given a separate category row, per an
+explicit user steer to keep this pass simpler. This means `01.1.7.1`'s HICP
+weight (which officially excludes potatoes) is applied to a basket that
+*does* include a potato product — a small, disclosed methodological
+looseness, not a data error.
+
+**Real bug caught before it shipped**: the plan for this round listed
+Yoghurt as `01.1.4.3` — plausible, but wrong. The same verification method
+used to fix the earlier Cheese/Eggs bug (Eurostat's official labels for the
+exact code) showed `01.1.4.3` is actually **Preserved milk** (weight 0.68);
+real Yoghurt is `01.1.4.4` (weight 5.58). Caught during curation, before any
+data was written — corrected in the plan and in `seed/categories.py`
+directly, so no live fix was needed this time. Lesson reinforced: never
+trust a COICOP code from memory or a plausible-sounding plan — always
+verify against Eurostat's own label for that exact code before seeding it.
+
+**Real gotcha hit again**: several sitemap-sourced Auchan product URLs
+(an apple, an orange, a pear — all under `produto-local` naming) returned
+HTTP 200 but rendered Auchan's own "not found" page instead of a product —
+the same stale-sitemap-URL class of bug already seen with Continente.
+Caught by checking for an actual `.sales` price element rather than trusting
+the HTTP status code; live replacement URLs were found via each category's
+current listing page instead of the sitemap.
+
+**Real gap found, not worked around**: Pingo Doce has no standalone fresh
+carrot listing anywhere in its product sitemap (confirmed via full-text
+search across both sitemap files, and its category landing page itself
+404s — consistent with its already-known broken category navigation).
+Rather than force a poor-fit substitute, carrot is 2-store coverage only
+(Continente, Auchan) — the first product in this basket without Pingo Doce
+representation.

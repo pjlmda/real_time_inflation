@@ -50,6 +50,30 @@ continente:
   "12.1.3.2": # Personal care articles and products
     urls:
       - https://www.continente.pt/beleza-e-higiene/corpo/sabonetes/
+  "01.1.1.2": # Bread and cereals -> Flours and other cereals
+    urls:
+      - https://www.continente.pt/mercearia/arroz-massa-e-farinha/farinha-e-pao-ralado/
+  "01.1.2.1": # Meat -> Beef and veal
+    urls:
+      - https://www.continente.pt/frescos/talho/novilho-vitela-e-vitelao/
+  "01.1.2.2": # Meat -> Pork
+    urls:
+      - https://www.continente.pt/frescos/talho/porco/
+  "01.1.3.1": # Fish and seafood -> Fresh or chilled fish
+    urls:
+      - https://www.continente.pt/frescos/peixaria/peixe-fresco/
+  "01.1.3.5": # Fish and seafood -> Dried, smoked or salted fish (bacalhau)
+    urls:
+      - https://www.continente.pt/frescos/peixaria/bacalhau/
+  "01.1.4.4": # Milk, cheese and eggs -> Yoghurt
+    urls:
+      - https://www.continente.pt/laticinios-e-ovos/iogurtes/
+  "01.1.6.1": # Fruit
+    urls:
+      - https://www.continente.pt/frescos/frutas/
+  "01.1.7.1": # Vegetables
+    urls:
+      - https://www.continente.pt/frescos/legumes/
 
 pingo-doce:
   "01.1.1.3":
@@ -76,6 +100,28 @@ pingo-doce:
     path_prefix: "/vinhos/vinho-tinto/"
   "12.1.3.2":
     path_prefix: "/higiene-pessoal-e-beleza/corpo/sabonetes/"
+  "01.1.1.2":
+    path_prefix: "/mercearia/farinha-fermento-e-acucar/farinha-fermento-e-pao-ralado/"
+    # NOTE: exclude_keywords must not be substrings of path_prefix itself
+    # (e.g. "pao-ralado" or "acucar" would exclude every URL under this
+    # path, since they're literal folder-name segments, not just possible
+    # product-slug words) — real bug hit and fixed during basket growth
+    # round 3, see seed/README.md.
+    exclude_keywords: ["fermento-em-po", "bicarbonato"]
+  "01.1.2.1":
+    path_prefix: "/talho/vitela-vitelao-e-bovino/"
+  "01.1.2.2":
+    path_prefix: "/talho/porco/"
+  "01.1.3.1":
+    path_prefix: "/peixaria/peixe/"
+  "01.1.3.5":
+    path_prefix: "/peixaria/bacalhau/bacalhau-salgado-seco/"
+  "01.1.4.4":
+    path_prefix: "/iogurtes-e-sobremesas/iogurtes/iogurtes-naturais"
+  "01.1.6.1":
+    path_prefix: "/frutas-e-vegetais/frutas/"
+  "01.1.7.1":
+    path_prefix: "/frutas-e-vegetais/vegetais/"
 
 # Auchan: also directly crawlable (robots.txt only blocks filter/search
 # params and account/checkout), same plain-URL-list approach as Continente.
@@ -115,3 +161,32 @@ auchan:
   "12.1.3.2":
     urls:
       - https://www.auchan.pt/pt/beleza-e-higiene/gel-de-banho-e-sabonete/sabonetes/
+  "01.1.1.2":
+    urls:
+      - https://www.auchan.pt/pt/alimentacao/mercearia/farinha/farinha-trigo/
+  "01.1.2.1":
+    urls:
+      - https://www.auchan.pt/pt/produtos-frescos/talho/vitela-e-novilho/
+  "01.1.2.2":
+    urls:
+      - https://www.auchan.pt/pt/produtos-frescos/talho/porco/
+  "01.1.3.1":
+    urls:
+      - https://www.auchan.pt/pt/produtos-frescos/peixaria/peixe-fresco/
+  "01.1.3.5":
+    urls:
+      - https://www.auchan.pt/pt/produtos-frescos/peixaria/bacalhau/
+  "01.1.4.4":
+    urls:
+      - https://www.auchan.pt/pt/alimentacao/produtos-lacteos/iogurtes/magros-e-naturais/
+  "01.1.6.1": # split across Auchan's own fruit subcategories, no single "all fruit" page
+    urls:
+      - https://www.auchan.pt/pt/produtos-frescos/fruta/banana-e-frutos-tropicais/
+      - https://www.auchan.pt/pt/produtos-frescos/fruta/macas-peras-e-uvas/
+      - https://www.auchan.pt/pt/produtos-frescos/fruta/laranjas-clementinas-e-limoes/
+  "01.1.7.1": # split across Auchan's own vegetable subcategories, no single "all veg" page
+    urls:
+      - https://www.auchan.pt/pt/produtos-frescos/legumes/batatas-alho-e-cebola/
+      - https://www.auchan.pt/pt/produtos-frescos/legumes/abobora-cenoura-e-alho-frances/
+      - https://www.auchan.pt/pt/produtos-frescos/legumes/alface-e-agriao/
+      - https://www.auchan.pt/pt/produtos-frescos/legumes/tomate-pepino-e-pimentos/

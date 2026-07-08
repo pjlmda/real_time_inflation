@@ -88,10 +88,19 @@ class PingoDoceCategoryCrawler(CategoryCrawlerBase):
                     PRICE_PER_UNIT_RE.search(unit_text) or WEIGHT_ONLY_RE.search(unit_text)
                 )
                 if sales_content and has_signal:
-                    price_per_unit, _basis = parse_unit_measure(
-                        unit_text, fallback_price=float(sales_content)
-                    )
-                    prices.append(price_per_unit)
+                    try:
+                        price_per_unit, _basis = parse_unit_measure(
+                            unit_text, fallback_price=float(sales_content)
+                        )
+                    except (TypeError, ValueError):
+                        # A malformed sales `content` attribute (seen live as
+                        # the literal string "null" on at least one product)
+                        # shouldn't abort the whole category — same
+                        # philosophy as the page.goto() try/except above,
+                        # just one level more granular.
+                        pass
+                    else:
+                        prices.append(price_per_unit)
 
             await asyncio.sleep(random.uniform(*delay_range))
         return prices

@@ -26,7 +26,7 @@ continente:
       - https://www.continente.pt/laticinios-e-ovos/leite/meio-gordo/
       - https://www.continente.pt/laticinios-e-ovos/leite/magro/
       - https://www.continente.pt/laticinios-e-ovos/leite/inteiro/
-  "01.1.4.6": # Milk, cheese and eggs -> Eggs
+  "01.1.4.7": # Milk, cheese and eggs -> Eggs
     urls:
       - https://www.continente.pt/laticinios-e-ovos/ovos/
   "01.1.5.3": # Oils and fats -> Olive oil
@@ -35,7 +35,7 @@ continente:
   "01.1.1.1": # Bread and cereals -> Rice
     urls:
       - https://www.continente.pt/mercearia/arroz-massa-e-farinha/arroz/
-  "01.1.4.4": # Milk, cheese and eggs -> Cheese and curd
+  "01.1.4.5": # Milk, cheese and eggs -> Cheese and curd
     urls:
       - https://www.continente.pt/frescos/queijos/fatiado-e-bolas/
   "01.1.2.4": # Meat -> Poultry
@@ -59,14 +59,14 @@ pingo-doce:
   "01.1.4.1":
     path_prefix: "/leite-e-bebidas-vegetais%E2%80%8B/leite/"
     exclude_keywords: ["achocolatado", "aromatizado"]
-  "01.1.4.6":
+  "01.1.4.7":
     keywords: ["ovos-de-solo", "ovos-de-ar-livre", "ovos-classe"]
     exclude_keywords: ["chocolate", "codorniz", "moles", "kinder", "milka"]
   "01.1.5.3":
     path_prefix: "/mercearia/azeite-oleo-e-vinagre/azeite/"
   "01.1.1.1":
     path_prefix: "/mercearia/arroz-massa-e-leguminosas/arroz/"
-  "01.1.4.4":
+  "01.1.4.5":
     path_prefix: "/charcutaria-e-queijos/queijos/"
   "01.1.2.4":
     path_prefix: "/talho/aves/frango/"
@@ -89,7 +89,7 @@ auchan:
   "01.1.4.1":
     urls:
       - https://www.auchan.pt/pt/leites/leite-uht/
-  "01.1.4.6": # chicken eggs only — excludes quail eggs / liquid egg whites subcats
+  "01.1.4.7": # chicken eggs only — excludes quail eggs / liquid egg whites subcats
     urls:
       - https://www.auchan.pt/pt/ovos/ovos-galinhas-criadas-no-solo/
       - https://www.auchan.pt/pt/ovos/ovos-galinhas-criadas-ao-ar-livre/
@@ -100,7 +100,7 @@ auchan:
   "01.1.1.1":
     urls:
       - https://www.auchan.pt/pt/alimentacao/mercearia/arroz-e-massa/arroz/
-  "01.1.4.4":
+  "01.1.4.5":
     urls:
       - https://www.auchan.pt/pt/produtos-frescos/queijaria/queijos-internacionais/
   "01.1.2.4":

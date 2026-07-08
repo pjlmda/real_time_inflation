@@ -7,39 +7,39 @@ bread_com_codea_continente,Pão de Forma com Côdea Continente,Continente,true,0
 bread_sem_codea_bimbo,Pão de Forma sem Côdea Bimbo,Bimbo,false,01.1.1.3,650,g,8412600070994
 pasta_esparguete_milaneza,Massa Esparguete Milaneza,Milaneza,false,01.1.1.6,1,kg,5601286260345
 pasta_espirais_continente,Massa Espirais Pack Poupança Continente,Continente,true,01.1.1.6,1,kg,5601312108825
-eggs_m_continente,Ovos de Solo Classe M Continente,Continente,true,01.1.4.6,12,un,5601312509752
-eggs_l_continente,Ovos de Solo Classe L Continente,Continente,true,01.1.4.6,12,un,5601312508632
+eggs_m_continente,Ovos de Solo Classe M Continente,Continente,true,01.1.4.7,12,un,5601312509752
+eggs_l_continente,Ovos de Solo Classe L Continente,Continente,true,01.1.4.7,12,un,5601312508632
 olive_oil_continente,Azeite Virgem Extra Continente,Continente,true,01.1.5.3,750,ml,5601312077626
 olive_oil_classico_oliveira_da_serra,Azeite Virgem Extra Clássico Oliveira da Serra,Oliveira da Serra,false,01.1.5.3,750,ml,5601175101124
 milk_meio_gordo_pingodoce,Leite UHT Meio Gordo Pingo Doce,Pingo Doce,true,01.1.4.1,1,L,TODO
 milk_magro_pingodoce,Leite UHT Magro Pingo Doce,Pingo Doce,true,01.1.4.1,1,L,TODO
 bread_sem_codea_pingodoce,Pão de Forma Branco sem Côdea Pingo Doce,Pingo Doce,true,01.1.1.3,450,g,TODO
 pasta_espirais_pingodoce,Massa Espirais Pingo Doce,Pingo Doce,true,01.1.1.6,500,g,TODO
-eggs_m_pingodoce,Ovos de Solo Classe M Pingo Doce,Pingo Doce,true,01.1.4.6,12,un,TODO
-eggs_l_pingodoce,Ovos de Solo Classe L Pingo Doce,Pingo Doce,true,01.1.4.6,12,un,TODO
+eggs_m_pingodoce,Ovos de Solo Classe M Pingo Doce,Pingo Doce,true,01.1.4.7,12,un,TODO
+eggs_l_pingodoce,Ovos de Solo Classe L Pingo Doce,Pingo Doce,true,01.1.4.7,12,un,TODO
 olive_oil_nossas_planicies_pingodoce,Azeite Virgem Extra Nossas Planícies Pingo Doce,Pingo Doce,true,01.1.5.3,3,L,TODO
 milk_meio_gordo_auchan,Leite Auchan UHT Meio Gordo Slim,Auchan,true,01.1.4.1,1,L,5601002113979
 milk_magro_auchan,Leite Auchan UHT Magro Slim,Auchan,true,01.1.4.1,1,L,5601002113986
 milk_magro_mimosa_auchan,Leite Mimosa UHT Magro,Mimosa,false,01.1.4.1,1,L,5601049133992
 bread_auchan,Pão de Forma Auchan,Auchan,true,01.1.1.3,600,g,8423519006035
 pasta_esparguete_auchan,Esparguete Auchan,Auchan,true,01.1.1.6,1,kg,3596710515813
-eggs_m_saborosos_auchan,Ovos Saborosos Classe M,Saborosos,false,01.1.4.6,12,un,5601897122124
-eggs_l_auchan,Ovos Auchan Galinhas Solo Classe L,Auchan,true,01.1.4.6,12,un,5601002043054
+eggs_m_saborosos_auchan,Ovos Saborosos Classe M,Saborosos,false,01.1.4.7,12,un,5601897122124
+eggs_l_auchan,Ovos Auchan Galinhas Solo Classe L,Auchan,true,01.1.4.7,12,un,5601002043054
 olive_oil_polegar_auchan,Azeite Polegar,Polegar,false,01.1.5.3,750,ml,5601002119698
 olive_oil_oliveira_da_serra_pet_auchan,Azeite Oliveira da Serra PET,Oliveira da Serra,false,01.1.5.3,750,ml,5601024134136
 rice_continente,Arroz Agulha Continente,Continente,true,01.1.1.1,1,kg,5601312076315
-cheese_continente,Queijo Flamengo Fatiado Continente,Continente,true,01.1.4.4,500,g,5601312129172
+cheese_continente,Queijo Flamengo Fatiado Continente,Continente,true,01.1.4.5,500,g,5601312129172
 poultry_continente,Peito de Frango Continente,Continente,true,01.1.2.4,1.2,kg,2660256000000
 fish_continente,Atum em Azeite Continente,Continente,true,01.1.3.6,120,g,5601312040866
 wine_montevelho,Monte Velho Alentejano Vinho Tinto,Monte Velho,false,02.1.2.1,750,ml,5601989001412
 soap_dove_continente,Sabonete Sólido Original Dove,Dove,false,12.1.3.2,360,g,TODO
 rice_pingodoce,Arroz Agulha Bom Sucesso,Bom Sucesso,false,01.1.1.1,1,kg,TODO
-cheese_pingodoce,Queijo Flamengo Bola Limiano,Limiano,false,01.1.4.4,1,kg,TODO
+cheese_pingodoce,Queijo Flamengo Bola Limiano,Limiano,false,01.1.4.5,1,kg,TODO
 poultry_pingodoce,Frango Inteiro com Miúdos Nosso Talho,Nosso Talho,true,01.1.2.4,1.5,kg,TODO
 fish_pingodoce,Atum Posta em Azeite Pingo Doce,Pingo Doce,true,01.1.3.6,85,g,TODO
 soap_achbrito_pingodoce,Sabonete de Banho-Luxo Classic Ach. Brito,Ach. Brito,false,12.1.3.2,350,g,TODO
 rice_auchan,Arroz Agulha Auchan Extra Longo Suriname,Auchan,true,01.1.1.1,1,kg,5601002005014
-cheese_auchan,Queijo Emmental President,President,false,01.1.4.4,250,g,3228023910039
+cheese_auchan,Queijo Emmental President,President,false,01.1.4.5,250,g,3228023910039
 poultry_auchan,Frango Inteiro Auchan Sem Miúdos,Auchan,true,01.1.2.4,1,kg,2830563000005
 fish_auchan,Atum em Azeite Tenório,Tenório,false,01.1.3.6,120,g,5601029003000
 soap_achbrito_auchan,Sabonete Ach Brito Lavanda Grande,Ach Brito,false,12.1.3.2,125,g,5601135060270

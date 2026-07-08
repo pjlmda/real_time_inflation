@@ -7,6 +7,22 @@ adding it here). `parent_id` is left null — the full division/group/class
 ancestor hierarchy only matters once the category crawl needs to walk it (it
 doesn't). `hicp_weight`/`weight_year` are populated separately by
 weights/eurostat.py, never hardcoded here.
+
+**Real bug found and fixed (2026-07-08)**: "Cheese and curd" and "Eggs" were
+originally seeded under codes `01.1.4.4`/`01.1.4.6` — plausible-looking but
+wrong. Eurostat's actual PT breakdown of 01.1.4 (Milk, cheese and eggs) is
+finer than assumed: .1 fresh whole milk, .2 fresh low-fat milk, .3 preserved
+milk, .4 yoghurt, .5 cheese and curd, .6 other milk products, .7 eggs. This
+was caught by decoding Eurostat's raw `CPxxxxx` codes with our own
+`to_dotted_ecoicop()` and cross-checking against Eurostat's official English
+labels for those exact codes — both independently confirmed the correct
+codes are `01.1.4.5` (cheese) and `01.1.4.7` (eggs), not `.4`/`.6`. Fixed in
+place (same category `id`, so `products.category_id` FKs were untouched) and
+weights re-synced. Historical `inflation_metrics` rows computed before the
+fix keep the old (wrong) `dimension_value` — a small, accepted, disclosed
+discontinuity in those two categories' time series rather than rewriting
+already-computed history. Lesson: always verify a new code against Eurostat's
+own labels for that exact code, not just a plausible-sounding COICOP name.
 """
 from __future__ import annotations
 
@@ -19,11 +35,11 @@ SEED_CATEGORIES = [
         "level": 5,
     },
     {"ecoicop2_code": "01.1.4.1", "name_pt": "Leite fresco", "name_en": "Fresh milk", "level": 5},
-    {"ecoicop2_code": "01.1.4.6", "name_pt": "Ovos", "name_en": "Eggs", "level": 5},
+    {"ecoicop2_code": "01.1.4.7", "name_pt": "Ovos", "name_en": "Eggs", "level": 5},
     {"ecoicop2_code": "01.1.5.3", "name_pt": "Azeite", "name_en": "Olive oil", "level": 5},
     {"ecoicop2_code": "01.1.1.1", "name_pt": "Arroz", "name_en": "Rice", "level": 5},
     {
-        "ecoicop2_code": "01.1.4.4",
+        "ecoicop2_code": "01.1.4.5",
         "name_pt": "Queijo e requeijão",
         "name_en": "Cheese and curd",
         "level": 5,

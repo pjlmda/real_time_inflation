@@ -41,6 +41,20 @@ export function decodeWeights(param: string | null, categories: WeightableCatego
   return weights;
 }
 
+// Raw slider values are relative weights, not percentages — like the
+// official hicp_weight column, they don't need to (and shouldn't have to)
+// sum to 100 for the math to be correct, since weightedOverallIndex already
+// renormalizes by the total. This turns them into the percentages a user
+// actually expects to see, for display only (negative values floor to 0).
+export function normalizedShares(weights: Record<string, number>): Record<string, number> {
+  const total = Object.values(weights).reduce((sum, w) => sum + Math.max(w, 0), 0);
+  const shares: Record<string, number> = {};
+  for (const [code, w] of Object.entries(weights)) {
+    shares[code] = total > 0 ? (Math.max(w, 0) / total) * 100 : 0;
+  }
+  return shares;
+}
+
 // Mirrors metrics/formulas.py:weighted_overall_index — weighted arithmetic
 // mean, renormalized within whatever's covered. Categories with a null
 // index on a given day are excluded from that day's average entirely

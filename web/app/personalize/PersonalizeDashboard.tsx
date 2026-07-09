@@ -2,8 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import LineChart from "../components/LineChart";
+import WeightPieChart from "../components/WeightPieChart";
 import type { CategoryRow, CategorySeriesBulk, SeriesPoint } from "../lib/types";
-import { decodeWeights, defaultWeights, encodeWeights, weightedOverallIndex } from "../lib/personalize";
+import {
+  decodeWeights,
+  defaultWeights,
+  encodeWeights,
+  normalizedShares,
+  weightedOverallIndex,
+} from "../lib/personalize";
 
 const SLIDER_MAX = 25;
 
@@ -36,6 +43,23 @@ export default function PersonalizeDashboard({
     () => [...categories].sort((a, b) => (b.hicp_weight ?? 0) - (a.hicp_weight ?? 0)),
     [categories]
   );
+
+  // Stable color per category, assigned once from sort order rather than
+  // recomputed from live weights, so a slice's color never changes as its
+  // slider moves — only its size does.
+  const colorByCode = useMemo(() => {
+    const map: Record<string, string> = {};
+    sorted.forEach((cat, i) => {
+      map[cat.ecoicop2_code] = `hsl(${Math.round((i * 360) / sorted.length)}, 65%, 55%)`;
+    });
+    return map;
+  }, [sorted]);
+
+  const totalWeight = useMemo(
+    () => Object.values(weights).reduce((sum, w) => sum + Math.max(w, 0), 0),
+    [weights]
+  );
+  const shares = useMemo(() => normalizedShares(weights), [weights]);
 
   // Union of every date any category has data for — categories were added
   // incrementally, so this can extend further back than any single one of
@@ -99,15 +123,20 @@ export default function PersonalizeDashboard({
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 space-y-8">
-      <header>
-        <a href="/" className="text-sm text-neutral-400 hover:text-neutral-200">
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Personalize your inflation rate</h1>
+          <p className="text-sm text-neutral-400">
+            Adjust each category&apos;s weight to match your own household&apos;s spending, instead of the
+            average Portuguese household HICP uses.
+          </p>
+        </div>
+        <a
+          href="/"
+          className="shrink-0 rounded border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800"
+        >
           ← Back to dashboard
         </a>
-        <h1 className="mt-2 text-2xl font-semibold">Personalize your inflation rate</h1>
-        <p className="text-sm text-neutral-400">
-          Adjust each category&apos;s weight to match your own household&apos;s spending, instead of the
-          average Portuguese household HICP uses.
-        </p>
       </header>
 
       <div className="rounded-lg border border-yellow-800 bg-yellow-950/30 p-4 text-sm text-yellow-200">
@@ -166,12 +195,46 @@ export default function PersonalizeDashboard({
             </button>
           </div>
         </div>
+        <p className="mb-4 text-sm text-neutral-400">
+          Sliders are relative weights, not percentages themselves — they&apos;re automatically
+          rebalanced to add up to 100% (the <strong>Share</strong> column and the chart below), the same
+          way the official HICP weights are. Raising one category&apos;s slider lowers every other
+          category&apos;s share without you having to manually adjust them to compensate.
+        </p>
+
+        <div className="mb-6 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+          <WeightPieChart
+            slices={sorted.map((cat) => ({
+              code: cat.ecoicop2_code,
+              label: cat.name_en,
+              value: weights[cat.ecoicop2_code] ?? 0,
+              color: colorByCode[cat.ecoicop2_code],
+            }))}
+          />
+          <div className="text-sm text-neutral-400">
+            <div>
+              Total raw weight: <span className="tabular-nums text-neutral-200">{totalWeight.toFixed(1)}</span>
+            </div>
+            <div className="mt-1">Always shown normalized to 100% — the chart and Share column reflect that, regardless of this raw total.</div>
+          </div>
+        </div>
+
         <div className="space-y-3">
           {sorted.map((cat) => {
             const weight = weights[cat.ecoicop2_code] ?? 0;
+            const share = shares[cat.ecoicop2_code] ?? 0;
             return (
-              <div key={cat.ecoicop2_code} className="grid grid-cols-[1fr_auto] items-center gap-3 sm:grid-cols-[220px_1fr_auto]">
-                <div className="text-sm">{cat.name_en}</div>
+              <div
+                key={cat.ecoicop2_code}
+                className="grid grid-cols-[1fr_auto] items-center gap-3 sm:grid-cols-[220px_1fr_auto_auto]"
+              >
+                <div className="flex items-center gap-2 text-sm">
+                  <span
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: colorByCode[cat.ecoicop2_code] }}
+                  />
+                  {cat.name_en}
+                </div>
                 <input
                   type="range"
                   min={0}
@@ -187,11 +250,20 @@ export default function PersonalizeDashboard({
                   {weight.toFixed(1)}
                   <span className="text-neutral-600"> / {cat.hicp_weight?.toFixed(1) ?? "0.0"}</span>
                 </div>
+                <div className="w-16 text-right text-sm font-medium tabular-nums text-neutral-200">
+                  {share.toFixed(1)}%
+                </div>
               </div>
             );
           })}
         </div>
       </section>
+
+      <div className="text-center">
+        <a href="/" className="text-sm text-neutral-400 hover:text-neutral-200">
+          ← Back to dashboard
+        </a>
+      </div>
     </main>
   );
 }

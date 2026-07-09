@@ -33,19 +33,44 @@ PRICE_BASES = [("headline", "regular_price"), ("effective", "price")]
 PERIOD_LOOKBACK_DAYS = {"daily": 1, "weekly": 7, "monthly": 30, "yearly": 365}
 
 
-def fetch_basket_rows(client, store_id: int | None = None) -> list[dict]:
-    query = (
+def fetch_basket_rows(client, store_ids: list[int]) -> list[dict]:
+    """Scoped to an explicit store_id list — always either every store in one
+    country (for the 'overall'/'category' dimensions) or a single store (for
+    the 'store' dimension). Never unscoped: COICOP codes are the same
+    international taxonomy across countries, so mixing two countries'
+    listings into one aggregation would silently blend their prices
+    together (spec: see docs/france-expansion-plan.md §3.1)."""
+    if not store_ids:
+        return []
+    return (
         client.table("product_listings")
         .select(
             "id, store_id, "
             "products(category_id, within_cat_weight, "
-            "categories(ecoicop2_code, hicp_weight))"
+            "categories(ecoicop2_code))"
         )
         .eq("is_active", True)
+        .in_("store_id", store_ids)
+        .execute()
+        .data
     )
-    if store_id is not None:
-        query = query.eq("store_id", store_id)
-    return query.execute().data
+
+
+def fetch_category_weights(client, country: str) -> dict[str, float]:
+    """ecoicop2_code -> hicp_weight for one country (category_weights,
+    migration 0007) — weights are country-specific even though the COICOP
+    code/name taxonomy in `categories` itself is shared."""
+    resp = (
+        client.table("category_weights")
+        .select("ecoicop2_code, hicp_weight")
+        .eq("country", country)
+        .execute()
+    )
+    return {
+        row["ecoicop2_code"]: float(row["hicp_weight"])
+        for row in resp.data
+        if row["hicp_weight"] is not None
+    }
 
 
 def fetch_snapshots_by_listing(client, listing_ids: list[int]) -> dict[int, list[dict]]:
@@ -85,11 +110,13 @@ def class_relatives(
     snapshots_by_listing: dict[int, list[dict]],
     as_of_date: str,
     price_field: str,
-) -> tuple[dict[str, list[tuple[float, float]]], dict[str, float], int]:
+) -> tuple[dict[str, list[tuple[float, float]]], int]:
     """Groups listings by ECOICOP class. Returns (relatives-and-weights per
-    ecoicop2_code, hicp_weight per ecoicop2_code, n_covered)."""
+    ecoicop2_code, n_covered). HICP weights are looked up separately, once
+    per country, via fetch_category_weights — they're not a property of the
+    basket row itself (categories is a shared, country-agnostic taxonomy;
+    weights are country-specific, see migration 0007)."""
     by_category: dict[str, list[tuple[float, float]]] = {}
-    hicp_weight: dict[str, float] = {}
     n_covered = 0
     for row in basket_rows:
         product = row["products"]
@@ -106,13 +133,12 @@ def class_relatives(
         weight = float(product["within_cat_weight"]) if product["within_cat_weight"] else 1.0
         code = category["ecoicop2_code"]
         by_category.setdefault(code, []).append((relative, weight))
-        hicp_weight[code] = float(category["hicp_weight"]) if category["hicp_weight"] else 0.0
         n_covered += 1
-    return by_category, hicp_weight, n_covered
+    return by_category, n_covered
 
 
 def _existing_index(
-    client, as_of_date: str, period: str, dimension: str, dimension_value: str, price_basis: str
+    client, as_of_date: str, period: str, dimension: str, dimension_value: str, price_basis: str, country: str
 ) -> float | None:
     target_date = (date.fromisoformat(as_of_date) - timedelta(days=PERIOD_LOOKBACK_DAYS[period])).isoformat()
     resp = (
@@ -124,6 +150,7 @@ def _existing_index(
         .eq("dimension", dimension)
         .eq("dimension_value", dimension_value)
         .eq("price_basis", price_basis)
+        .eq("country", country)
         .limit(1)
         .execute()
     )
@@ -131,7 +158,7 @@ def _existing_index(
 
 
 def _recent_daily_indices(
-    client, as_of_date: str, dimension: str, dimension_value: str, price_basis: str, days: int = 6
+    client, as_of_date: str, dimension: str, dimension_value: str, price_basis: str, country: str, days: int = 6
 ) -> list[float]:
     """Prior `days` days of this scope's raw daily index_value (already
     persisted from previous runs) — used to build an expanding-then-7-day
@@ -147,6 +174,7 @@ def _recent_daily_indices(
         .eq("dimension", dimension)
         .eq("dimension_value", dimension_value)
         .eq("price_basis", price_basis)
+        .eq("country", country)
         .gte("as_of_date", start_date)
         .lte("as_of_date", end_date)
         .order("as_of_date")
@@ -164,6 +192,7 @@ def _write_index_and_rates(
     index_value: float,
     n_products: int,
     coverage: float,
+    country: str,
 ) -> list[dict]:
     written = []
     for period in PERIOD_LOOKBACK_DAYS:
@@ -179,15 +208,16 @@ def _write_index_and_rates(
             "inflation_rate": None,
             "n_products": n_products,
             "coverage": round(coverage, 4),
+            "country": country,
         }
         if period == "daily":
-            history = _recent_daily_indices(client, as_of_date, dimension, dimension_value, price_basis)
+            history = _recent_daily_indices(client, as_of_date, dimension, dimension_value, price_basis, country)
             row["index_value_ma7"] = round(moving_average(history + [index_value]), 4)
-        past_index = _existing_index(client, as_of_date, period, dimension, dimension_value, price_basis)
+        past_index = _existing_index(client, as_of_date, period, dimension, dimension_value, price_basis, country)
         if past_index is not None:
             row["inflation_rate"] = round(inflation_rate(index_value, past_index), 4)
         client.table("inflation_metrics").upsert(
-            row, on_conflict="as_of_date,index_family,period,dimension,dimension_value,price_basis"
+            row, on_conflict="as_of_date,index_family,period,dimension,dimension_value,price_basis,country"
         ).execute()
         written.append(row)
     return written
@@ -195,69 +225,72 @@ def _write_index_and_rates(
 
 def _compute_scope(
     client, as_of_date: str, basket_rows: list[dict]
-) -> Iterator[tuple[str, dict[str, list[tuple[float, float]]], dict[str, float], int, float]]:
-    """Computes per-category class indices for one scope's basket_rows, plus
-    the weighted combination across those classes. Returns the written
-    'category' rows plus the combined row's inputs (caller decides whether
-    to label the combination 'overall' or 'store')."""
-    written: list[dict] = []
+) -> Iterator[tuple[str, dict[str, list[tuple[float, float]]], int, float]]:
+    """Computes per-category relatives for one scope's basket_rows. Returns
+    the inputs needed for both the 'category' rows and the weighted
+    combination (caller decides whether to label the combination 'overall'
+    or 'store', and supplies the country-scoped hicp_weight lookup)."""
     listing_ids = [r["id"] for r in basket_rows]
     snapshots = fetch_snapshots_by_listing(client, listing_ids)
 
     for price_basis, price_field in PRICE_BASES:
-        by_category, hicp_weight, n_covered = class_relatives(
-            basket_rows, snapshots, as_of_date, price_field
-        )
+        by_category, n_covered = class_relatives(basket_rows, snapshots, as_of_date, price_field)
         coverage = n_covered / len(listing_ids) if listing_ids else 0.0
-        yield price_basis, by_category, hicp_weight, n_covered, coverage
+        yield price_basis, by_category, n_covered, coverage
 
 
 def compute_metrics_for_date(client, as_of_date: str) -> list[dict]:
     written: list[dict] = []
-    stores = client.table("stores").select("id, slug").execute().data
-
-    # --- overall (all stores) + per-category (across all stores) ---
-    overall_rows = fetch_basket_rows(client, store_id=None)
-    for price_basis, by_category, hicp_weight, n_covered, coverage in _compute_scope(
-        client, as_of_date, overall_rows
-    ):
-        class_indices: dict[str, float] = {}
-        for code, relatives_and_weights in by_category.items():
-            index = jevons_class_index(relatives_and_weights)
-            class_indices[code] = index
-            written += _write_index_and_rates(
-                client, as_of_date, "category", code, price_basis,
-                index, len(relatives_and_weights), coverage,
-            )
-
-        overall_pairs = [
-            (idx, hicp_weight[code]) for code, idx in class_indices.items() if hicp_weight.get(code, 0) > 0
-        ]
-        if overall_pairs:
-            overall_index = weighted_overall_index(overall_pairs)
-            written += _write_index_and_rates(
-                client, as_of_date, "overall", "ALL", price_basis,
-                overall_index, n_covered, coverage,
-            )
-
-    # --- per-store (combined across that store's own categories) ---
+    stores = client.table("stores").select("id, slug, country").execute().data
+    stores_by_country: dict[str, list[dict]] = {}
     for store in stores:
-        store_rows = fetch_basket_rows(client, store_id=store["id"])
-        if not store_rows:
-            continue
-        for price_basis, by_category, hicp_weight, n_covered, coverage in _compute_scope(
-            client, as_of_date, store_rows
+        stores_by_country.setdefault(store["country"], []).append(store)
+
+    for country, country_stores in stores_by_country.items():
+        hicp_weight = fetch_category_weights(client, country)
+
+        # --- overall (all stores in this country) + per-category (across this country's stores) ---
+        overall_rows = fetch_basket_rows(client, [s["id"] for s in country_stores])
+        for price_basis, by_category, n_covered, coverage in _compute_scope(
+            client, as_of_date, overall_rows
         ):
-            class_indices = {code: jevons_class_index(rw) for code, rw in by_category.items()}
-            store_pairs = [
+            class_indices: dict[str, float] = {}
+            for code, relatives_and_weights in by_category.items():
+                index = jevons_class_index(relatives_and_weights)
+                class_indices[code] = index
+                written += _write_index_and_rates(
+                    client, as_of_date, "category", code, price_basis,
+                    index, len(relatives_and_weights), coverage, country,
+                )
+
+            overall_pairs = [
                 (idx, hicp_weight[code]) for code, idx in class_indices.items() if hicp_weight.get(code, 0) > 0
             ]
-            if store_pairs:
-                store_index = weighted_overall_index(store_pairs)
+            if overall_pairs:
+                overall_index = weighted_overall_index(overall_pairs)
                 written += _write_index_and_rates(
-                    client, as_of_date, "store", store["slug"], price_basis,
-                    store_index, n_covered, coverage,
+                    client, as_of_date, "overall", "ALL", price_basis,
+                    overall_index, n_covered, coverage, country,
                 )
+
+        # --- per-store (combined across that store's own categories) ---
+        for store in country_stores:
+            store_rows = fetch_basket_rows(client, [store["id"]])
+            if not store_rows:
+                continue
+            for price_basis, by_category, n_covered, coverage in _compute_scope(
+                client, as_of_date, store_rows
+            ):
+                class_indices = {code: jevons_class_index(rw) for code, rw in by_category.items()}
+                store_pairs = [
+                    (idx, hicp_weight[code]) for code, idx in class_indices.items() if hicp_weight.get(code, 0) > 0
+                ]
+                if store_pairs:
+                    store_index = weighted_overall_index(store_pairs)
+                    written += _write_index_and_rates(
+                        client, as_of_date, "store", store["slug"], price_basis,
+                        store_index, n_covered, coverage, country,
+                    )
 
     return written
 
@@ -272,7 +305,7 @@ def main() -> None:
     from alerting.console import ConsoleNotifier
     from alerting.telegram import TelegramNotifier
     from metrics.category_compute import compute_category_avg_metrics_for_date
-    from scraper.db import lisbon_scrape_date
+    from scraper.db import scrape_date_for_timezone
 
     load_dotenv()
 
@@ -289,7 +322,14 @@ def main() -> None:
         notifier = ConsoleNotifier()
 
     client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
-    as_of_date = lisbon_scrape_date()
+    # One as_of_date for the whole run, in the original/primary country's
+    # timezone — every country's compute_metrics_for_date call below shares
+    # it. Right at a country's own local midnight this can be off by a day
+    # for that country specifically (same accepted-tradeoff pattern already
+    # used for the scrape.yml cron's UTC/DST drift); a fully correct
+    # per-country "today" would mean running this job separately per
+    # country, not attempted yet (docs/france-expansion-plan.md §3.3).
+    as_of_date = scrape_date_for_timezone()
 
     # Spec §8: "compute job error / missing daily metrics" is an alertable
     # incident, same tier as a failed scrape — a stale index is silent

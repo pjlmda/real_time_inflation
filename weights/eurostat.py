@@ -86,10 +86,11 @@ def to_dotted_ecoicop(eurostat_code: str) -> str:
     return ".".join([digits[:2], *digits[2:]])
 
 
-def upsert_weights(records: list[WeightRecord], supabase_client) -> None:
+def upsert_weights(records: list[WeightRecord], supabase_client, country: str) -> None:
     """Append every fetched record to `hicp_weights_cache` (audit log, safe
-    to re-run), then update `categories.hicp_weight`/`weight_year` only for
-    the ECOICOP codes we've already seeded."""
+    to re-run), then upsert `category_weights` (migration 0007 — weights are
+    country-specific, unlike `categories` itself which stays the shared,
+    country-agnostic COICOP taxonomy) for the ECOICOP codes already seeded."""
     if not records:
         return
 
@@ -99,6 +100,7 @@ def upsert_weights(records: list[WeightRecord], supabase_client) -> None:
             "weight_year": r.weight_year,
             "weight": r.weight,
             "source_dataset": SOURCE_DATASET,
+            "country": country,
         }
         for r in records
     ]
@@ -111,20 +113,36 @@ def upsert_weights(records: list[WeightRecord], supabase_client) -> None:
     for r in records:
         if r.ecoicop2_code not in seeded:
             continue
-        supabase_client.table("categories").update(
-            {"hicp_weight": r.weight, "weight_year": r.weight_year}
-        ).eq("ecoicop2_code", r.ecoicop2_code).execute()
+        supabase_client.table("category_weights").upsert(
+            {
+                "ecoicop2_code": r.ecoicop2_code,
+                "country": country,
+                "hicp_weight": r.weight,
+                "weight_year": r.weight_year,
+            },
+            on_conflict="ecoicop2_code,country",
+        ).execute()
 
 
 def main() -> None:
+    import argparse
+
     from dotenv import load_dotenv
     from supabase import create_client
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--geo",
+        default="PT",
+        help="Eurostat geo code / country to fetch+store weights for, e.g. PT or FR",
+    )
+    args = parser.parse_args()
+
     load_dotenv()
     client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
-    records = fetch_weights()
-    upsert_weights(records, client)
-    print(f"Synced {len(records)} weight records (latest year found in response).")
+    records = fetch_weights(geo=args.geo)
+    upsert_weights(records, client, country=args.geo)
+    print(f"Synced {len(records)} weight records for {args.geo} (latest year found in response).")
 
 
 if __name__ == "__main__":

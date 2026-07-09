@@ -99,6 +99,7 @@ def test_write_index_and_rates_computes_ma7_and_inflation_rate_only_where_histor
         index_value=101.0,
         n_products=50,
         coverage=0.9,
+        country="PT",
     )
 
     assert [row["period"] for row in written] == ["daily", "weekly", "monthly", "yearly"]
@@ -116,3 +117,4 @@ def test_write_index_and_rates_computes_ma7_and_inflation_rate_only_where_histor
     assert all(c.payload["price_basis"] == "effective" for c in upserts)
     assert all(c.payload["dimension"] == "overall" for c in upserts)
     assert all(c.payload["dimension_value"] == "ALL" for c in upserts)
+    assert all(c.payload["country"] == "PT" for c in upserts)

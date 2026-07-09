@@ -20,6 +20,13 @@ from dotenv import load_dotenv
 from supabase import Client, create_client
 
 ACTIVE_STORES = ["continente", "pingo-doce", "auchan"]
+# This dashboard deployment is scoped to one market — Portugal — even though
+# the schema now supports more (migration 0007). inflation_metrics has no
+# per-row market selector on the frontend yet, so every query here is
+# explicitly pinned to ACTIVE_COUNTRY rather than reading every country's
+# rows mixed together (docs/france-expansion-plan.md §3.4). Revisit once a
+# second country's data actually exists and a market switcher is built.
+ACTIVE_COUNTRY = "PT"
 COVERAGE_ALERT_THRESHOLD = 0.85
 STALE_AFTER_HOURS = 36
 
@@ -90,7 +97,14 @@ class SupabaseReader:
     # --- /inflation/latest ---
 
     def get_latest_as_of_date(self) -> str | None:
-        resp = self.client.table("inflation_metrics").select("as_of_date").order("as_of_date", desc=True).limit(1).execute()
+        resp = (
+            self.client.table("inflation_metrics")
+            .select("as_of_date")
+            .eq("country", ACTIVE_COUNTRY)
+            .order("as_of_date", desc=True)
+            .limit(1)
+            .execute()
+        )
         return resp.data[0]["as_of_date"] if resp.data else None
 
     def get_latest_overall(self) -> dict:
@@ -103,6 +117,7 @@ class SupabaseReader:
             .select("*")
             .eq("as_of_date", as_of_date)
             .eq("dimension", "overall")
+            .eq("country", ACTIVE_COUNTRY)
             .execute()
         )
         result: dict = {"as_of_date": as_of_date, "fixed_basket": {}, "category_avg": {}}
@@ -125,6 +140,7 @@ class SupabaseReader:
             .eq("dimension_value", dimension_value)
             .eq("period", period)
             .eq("price_basis", basis)
+            .eq("country", ACTIVE_COUNTRY)
             .order("as_of_date")
             .execute()
         )
@@ -134,6 +150,19 @@ class SupabaseReader:
 
     def get_categories(self) -> list[dict]:
         categories = self.client.table("categories").select("*").order("ecoicop2_code").execute().data
+
+        # Weights are country-specific (migration 0007's category_weights),
+        # while `categories` itself stays the shared, country-agnostic
+        # COICOP taxonomy — see docs/france-expansion-plan.md §3.2.
+        weights = (
+            self.client.table("category_weights")
+            .select("ecoicop2_code, hicp_weight")
+            .eq("country", ACTIVE_COUNTRY)
+            .execute()
+            .data
+        )
+        weight_by_code = {row["ecoicop2_code"]: row["hicp_weight"] for row in weights}
+
         as_of_date = self.get_latest_as_of_date()
         latest = (
             self.client.table("inflation_metrics")
@@ -141,6 +170,7 @@ class SupabaseReader:
             .eq("as_of_date", as_of_date)
             .eq("dimension", "category")
             .eq("period", "daily")
+            .eq("country", ACTIVE_COUNTRY)
             .execute()
             .data
             if as_of_date
@@ -164,6 +194,7 @@ class SupabaseReader:
             .eq("index_family", "fixed_basket")
             .eq("price_basis", "headline")
             .eq("period", "daily")
+            .eq("country", ACTIVE_COUNTRY)
             .order("as_of_date")
             .execute()
             .data
@@ -177,7 +208,7 @@ class SupabaseReader:
                 "ecoicop2_code": cat["ecoicop2_code"],
                 "name_pt": cat["name_pt"],
                 "name_en": cat["name_en"],
-                "hicp_weight": cat["hicp_weight"],
+                "hicp_weight": weight_by_code.get(cat["ecoicop2_code"]),
                 "latest": by_code.get(cat["ecoicop2_code"], {}),
                 "base_date": base_date_by_code.get(cat["ecoicop2_code"]),
             }
@@ -197,6 +228,7 @@ class SupabaseReader:
             .eq("index_family", family)
             .eq("period", period)
             .eq("price_basis", basis)
+            .eq("country", ACTIVE_COUNTRY)
             .order("as_of_date")
             .execute()
             .data
@@ -225,6 +257,7 @@ class SupabaseReader:
             .eq("as_of_date", as_of_date)
             .eq("dimension", "store")
             .eq("period", "daily")
+            .eq("country", ACTIVE_COUNTRY)
             .execute()
             .data
             if as_of_date
@@ -262,6 +295,10 @@ class SupabaseReader:
     # --- /products ---
 
     def get_products(self) -> list[dict]:
+        # Not yet country-scoped: products/product_listings have no direct
+        # country column of their own (it'd need a join through stores), and
+        # no non-PT products are seeded yet. Needs the same treatment as the
+        # inflation_metrics queries above before any French products exist.
         products = self.client.table("products").select("*, categories(ecoicop2_code, name_en)").eq("is_active", True).execute().data
         listings = (
             self.client.table("product_listings")

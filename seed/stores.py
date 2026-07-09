@@ -16,7 +16,7 @@ def load_store_rows() -> list[dict]:
             "name": s["name"],
             "slug": s["slug"],
             "base_url": s["base_url"],
-            "country": "PT",
+            "country": s.get("country", "PT"),
         }
         for s in raw["stores"]
     ]

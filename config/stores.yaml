@@ -14,6 +14,7 @@ stores:
     delay_seconds_max: 5
     locale: pt-PT
     timezone_id: Europe/Lisbon
+    country: PT
 
   - slug: pingo-doce
     name: Pingo Doce
@@ -27,6 +28,7 @@ stores:
     delay_seconds_max: 5
     locale: pt-PT
     timezone_id: Europe/Lisbon
+    country: PT
 
   - slug: auchan
     name: Auchan
@@ -40,8 +42,46 @@ stores:
     delay_seconds_max: 5
     locale: pt-PT
     timezone_id: Europe/Lisbon
+    country: PT
 
   - slug: lidl
     name: Lidl
     base_url: https://www.lidl.pt
     active: false
+    country: PT
+
+  # France (docs/france-expansion-plan.md) — Auchan is not bot-blocked
+  # (unlike Leclerc/Carrefour/Intermarché/Système U, all confirmed behind
+  # DataDome or Cloudflare) but shows no price anywhere until a Drive
+  # pickup location is confirmed once per session; scraper/auchan_france.py
+  # handles that. Two geographically distinct locations are tracked, not
+  # one, since Drive prices are genuinely local (confirmed live: the same
+  # product priced differently in Paris vs. Marseille). Seeded but not yet
+  # active — no basket has been curated for France yet.
+  - slug: auchan-fr-paris
+    name: Auchan (Paris Drive)
+    base_url: https://www.auchan.fr
+    active: false
+    user_agents:
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    delay_seconds_min: 2
+    delay_seconds_max: 5
+    locale: fr-FR
+    timezone_id: Europe/Paris
+    country: FR
+
+  - slug: auchan-fr-marseille
+    name: Auchan (Marseille Drive)
+    base_url: https://www.auchan.fr
+    active: false
+    user_agents:
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    delay_seconds_min: 2
+    delay_seconds_max: 5
+    locale: fr-FR
+    timezone_id: Europe/Paris
+    country: FR

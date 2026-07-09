@@ -17,6 +17,7 @@ from alerting.console import ConsoleNotifier
 from alerting.telegram import TelegramNotifier
 from scraper.auchan import AuchanScraper
 from scraper.auchan_category import AuchanCategoryCrawler
+from scraper.auchan_france import AuchanFranceScraper
 from scraper.continente import ContinenteScraper
 from scraper.continente_category import ContinenteCategoryCrawler
 from scraper.db import SupabaseWriter
@@ -28,6 +29,8 @@ SCRAPERS = {
     "continente": ContinenteScraper,
     "pingo-doce": PingoDoceScraper,
     "auchan": AuchanScraper,
+    "auchan-fr-paris": AuchanFranceScraper,
+    "auchan-fr-marseille": AuchanFranceScraper,
     # lidl: added once the widened pilot is verified (spec §11).
 }
 

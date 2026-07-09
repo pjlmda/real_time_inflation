@@ -76,7 +76,7 @@ BOOTSTRAP_PRODUCT_URL = "/auchan-lait-demi-ecreme-sterilise-uht/pr-C1171534"
 
 OUT_OF_STOCK_TEXT = "Ce produit n'est plus dans notre gamme"
 PRICE_PER_UNIT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*€\s*/\s*([a-zA-Z]+)", re.IGNORECASE)
-UNIT_ABBREV_MAP = {"l": "L", "kg": "kg", "g": "g", "ml": "mL", "cl": "cL", "u": "un"}
+UNIT_ABBREV_MAP = {"l": "L", "kg": "kg", "g": "g", "ml": "mL", "cl": "cL", "u": "un", "pce": "un"}
 
 
 class AuchanFranceScraper(BaseScraper):

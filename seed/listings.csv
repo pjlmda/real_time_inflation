@@ -108,3 +108,13 @@ wine_auchan_cheap,auchan,https://www.auchan.pt/pt/bebidas-e-garrafeira/garrafeir
 soap_continente_cheap,continente,https://www.continente.pt/produto/sabonete-solido-feno-4784193.html,4784193,5600258596079,ean
 soap_pingodoce_cheap,pingo-doce,https://www.pingodoce.pt/home/produtos/higiene-pessoal-e-beleza/corpo/sabonetes/sabonete-solido-leite-e-mel-pingo-doce-899390.html,899390,TODO,manual
 soap_auchan_cheap,auchan,https://www.auchan.pt/pt/beleza-e-higiene/gel-de-banho-e-sabonete/sabonetes/sabonete-polegar-solido-90g/3594362.html,3594362,3245678671283,ean
+riz_basmati_auchan_fr,auchan-fr-paris,https://www.auchan.fr/auchan-riz-basmati/pr-C1862675,C1862675,3596710558117,ean
+riz_basmati_auchan_fr,auchan-fr-marseille,https://www.auchan.fr/auchan-riz-basmati/pr-C1862675,C1862675,3596710558117,ean
+pain_de_mie_auchan_fr,auchan-fr-paris,https://www.auchan.fr/auchan-pain-de-mie-nature-extra-moelleux-nature/pr-C1199768,C1199768,3596710433155,ean
+pain_de_mie_auchan_fr,auchan-fr-marseille,https://www.auchan.fr/auchan-pain-de-mie-nature-extra-moelleux-nature/pr-C1199768,C1199768,3596710433155,ean
+emmental_bloc_auchan_fr,auchan-fr-paris,https://www.auchan.fr/auchan-emmental-francais-en-bloc/pr-C1200000,C1200000,3596710385263,ean
+emmental_bloc_auchan_fr,auchan-fr-marseille,https://www.auchan.fr/auchan-emmental-francais-en-bloc/pr-C1200000,C1200000,3596710385263,ean
+oeufs_plein_air_auchan_fr,auchan-fr-paris,https://www.auchan.fr/auchan-oeufs-de-poules-elevees-en-plein-air/pr-C1163510,C1163510,3596710479337,ean
+oeufs_plein_air_auchan_fr,auchan-fr-marseille,https://www.auchan.fr/auchan-oeufs-de-poules-elevees-en-plein-air/pr-C1163510,C1163510,3596710479337,ean
+bananes_prix_bas_auchan_fr,auchan-fr-paris,https://www.auchan.fr/bananes-prix-bas/pr-C1774822,C1774822,3192340348960,ean
+bananes_prix_bas_auchan_fr,auchan-fr-marseille,https://www.auchan.fr/bananes-prix-bas/pr-C1774822,C1774822,3192340348960,ean

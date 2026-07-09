@@ -56,12 +56,13 @@ stores:
   # pickup location is confirmed once per session; scraper/auchan_france.py
   # handles that. Two geographically distinct locations are tracked, not
   # one, since Drive prices are genuinely local (confirmed live: the same
-  # product priced differently in Paris vs. Marseille). Seeded but not yet
-  # active — no basket has been curated for France yet.
+  # product priced differently in Paris vs. Marseille). Pilot basket: 5
+  # products across 5 categories (rice, bread, cheese, eggs, fresh fruit).
+  # Not yet in .github/workflows/scrape.yml's matrix — still manual-only.
   - slug: auchan-fr-paris
     name: Auchan (Paris Drive)
     base_url: https://www.auchan.fr
-    active: false
+    active: true
     user_agents:
       - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
       - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
@@ -75,7 +76,7 @@ stores:
   - slug: auchan-fr-marseille
     name: Auchan (Marseille Drive)
     base_url: https://www.auchan.fr
-    active: false
+    active: true
     user_agents:
       - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
       - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"

@@ -11,6 +11,7 @@ from scraper.models import FetchFailed
         ("1,63€ / L", (1.63, "EUR/L")),
         ("4,20€ / kg", (4.20, "EUR/kg")),
         ("0,97€ / u", (0.97, "EUR/un")),
+        ("0,29€ / pce", (0.29, "EUR/un")),  # "pce" (pièce) is what auchan.fr actually renders
         ("1€ / l", (1.0, "EUR/L")),  # whole numbers render with no decimal point
     ],
 )

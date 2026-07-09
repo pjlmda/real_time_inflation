@@ -27,6 +27,7 @@ export interface CategoryRow {
   name_en: string;
   hicp_weight: number | null;
   latest: Record<string, MetricPoint>;
+  base_date: string | null;
 }
 
 export interface StoreRow {

@@ -15,7 +15,12 @@ export default function CategoryBreakdown({ categories }: { categories: Category
             <tr>
               <th className="py-1 pr-4 font-normal">Category</th>
               <th className="py-1 pr-4 font-normal">HICP weight</th>
-              <th className="py-1 pr-4 font-normal">Index</th>
+              <th
+                className="py-1 pr-4 font-normal underline decoration-dotted decoration-neutral-600 cursor-help"
+                title="Index = 100 on the day each category first entered the tracker (categories were added incrementally, so the base date differs per row — hover a value to see its exact base date)."
+              >
+                Index
+              </th>
               <th className="py-1 pr-4 font-normal">Daily change</th>
             </tr>
           </thead>
@@ -28,7 +33,14 @@ export default function CategoryBreakdown({ categories }: { categories: Category
                   <td className="py-2 pr-4 tabular-nums text-neutral-400">
                     {cat.hicp_weight?.toFixed(2) ?? "—"}
                   </td>
-                  <td className="py-2 pr-4 tabular-nums">
+                  <td
+                    className="py-2 pr-4 tabular-nums cursor-help"
+                    title={
+                      metric && cat.base_date
+                        ? `100 = index value on ${cat.base_date}, the day this category was first tracked`
+                        : undefined
+                    }
+                  >
                     {metric ? metric.index_value?.toFixed(2) : "—"}
                     {metric?.low_confidence && (
                       <span className="ml-1 rounded bg-yellow-900 px-1 text-xs text-yellow-300">low confidence</span>

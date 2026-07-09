@@ -152,6 +152,26 @@ class SupabaseReader:
                 _shape_metric_row(row)
             )
 
+        # Each category's index is rebased to 100 on the first day it entered
+        # the tracker (categories were added incrementally across several
+        # basket-growth rounds, not all on day one) — surfaced per-category so
+        # the "Index" column can be traced back to a concrete base date rather
+        # than a single project-wide one.
+        base_dates_resp = (
+            self.client.table("inflation_metrics")
+            .select("dimension_value, as_of_date")
+            .eq("dimension", "category")
+            .eq("index_family", "fixed_basket")
+            .eq("price_basis", "headline")
+            .eq("period", "daily")
+            .order("as_of_date")
+            .execute()
+            .data
+        )
+        base_date_by_code: dict[str, str] = {}
+        for row in base_dates_resp:
+            base_date_by_code.setdefault(row["dimension_value"], row["as_of_date"])
+
         return [
             {
                 "ecoicop2_code": cat["ecoicop2_code"],
@@ -159,6 +179,7 @@ class SupabaseReader:
                 "name_en": cat["name_en"],
                 "hicp_weight": cat["hicp_weight"],
                 "latest": by_code.get(cat["ecoicop2_code"], {}),
+                "base_date": base_date_by_code.get(cat["ecoicop2_code"]),
             }
             for cat in categories
         ]

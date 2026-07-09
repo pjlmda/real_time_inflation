@@ -9,6 +9,8 @@ basket-growth round were both live and verified.
 
 ## Part 1 — User-customizable category weights ("my personal inflation rate")
 
+**Status: v1 shipped 2026-07-09** at `/personalize` (`web/app/personalize/`), built exactly along the lines recommended below — client-side computation, URL-encoded shareable weights, no auth, no new table. What's described in this section as "recommended architecture" is what actually got built; see `docs/system-overview.md` §3.11 and §14 for the as-built writeup and what's still missing (preset profiles, `localStorage` persistence — both still just ideas, not built).
+
 ### Why this is worth building
 
 The headline number is currently a weighted average using **official HICP

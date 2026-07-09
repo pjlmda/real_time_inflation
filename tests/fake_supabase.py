@@ -22,6 +22,14 @@ class FakeQuery:
         self.filters.append(("lte", col, val))
         return self
 
+    def in_(self, col, vals):
+        self.filters.append(("in", col, vals))
+        return self
+
+    def match(self, conditions: dict):
+        self.filters.append(("match", None, conditions))
+        return self
+
     def limit(self, n):
         return self
 

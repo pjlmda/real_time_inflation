@@ -11,7 +11,7 @@ from playwright.async_api import BrowserContext, Page, async_playwright
 
 from alerting.base import Notifier
 from scraper.antibot import RobotsChecker, apply_stealth, sleep_jitter, with_backoff
-from scraper.db import SupabaseWriter, is_same_lisbon_day
+from scraper.db import SupabaseWriter, is_same_day
 from scraper.models import BlockDetected, FetchFailed, Listing, RunResult, ScrapedPrice
 from scraper.store_config import StoreConfig
 
@@ -61,7 +61,7 @@ class BaseScraper(ABC):
         # warns against, just spread across two runs instead of one. A failure
         # for any other reason (site hiccup, DB error) still retries normally.
         latest = self.db.get_latest_run(store_id, mode)
-        if latest and latest.get("blocked") and is_same_lisbon_day(latest["started_at"]):
+        if latest and latest.get("blocked") and is_same_day(latest["started_at"], self.config.timezone_id):
             print(
                 f"Skipping {self.config.name} {mode} run — blocked earlier today, "
                 "waiting for tomorrow's scheduled run instead of retrying into it."

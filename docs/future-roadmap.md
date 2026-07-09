@@ -96,6 +96,14 @@ Genuinely small relative to everything else built this session.
 
 ## Part 2 — Multi-country expansion (France, Germany, UK, US)
 
+**See [france-expansion-plan.md](france-expansion-plan.md)** for a concrete,
+live-verified follow-up on the France case specifically — real market-share
+data, live anti-bot checks against all six major French chains (confirming
+the prediction below: the four biggest are all behind DataDome/Cloudflare,
+only Auchan and Lidl aren't), and the exact schema changes multi-country
+support needs (`inflation_metrics` has no country dimension today —
+a real blocker, not just extra work).
+
 ### The honest bottleneck ranking
 
 1. **Anti-bot difficulty at bigger retailers — likely the hardest blocker.**

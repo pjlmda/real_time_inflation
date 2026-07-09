@@ -1,11 +1,11 @@
-from scraper.db import lisbon_scrape_date, SupabaseWriter
+from scraper.db import scrape_date_for_timezone, SupabaseWriter
 from scraper.models import RunResult, ScrapedPrice
 from tests.fake_supabase import FakeSupabaseClient
 
 
-def make_writer():
+def make_writer(timezone_id="Europe/Lisbon"):
     client = FakeSupabaseClient()
-    return SupabaseWriter(client), client
+    return SupabaseWriter(client, timezone_id=timezone_id), client
 
 
 def test_upsert_snapshot_sends_correct_row_and_conflict_key():
@@ -28,10 +28,34 @@ def test_upsert_snapshot_sends_correct_row_and_conflict_key():
     call = calls[0]
     assert call.op == "upsert"
     assert call.payload["listing_id"] == 42
-    assert call.payload["scrape_date"] == lisbon_scrape_date()
+    assert call.payload["scrape_date"] == scrape_date_for_timezone("Europe/Lisbon")
     assert call.payload["price"] == 0.79
     assert call.payload["is_promotion"] is True
     assert call.payload["currency"] == "EUR"
+
+
+def test_upsert_snapshot_uses_the_writers_own_configured_timezone():
+    # The actual bug this generalizes away: scrape_date used to be pinned to
+    # a single global Europe/Lisbon constant regardless of which store's
+    # writer was doing the writing. A French store's writer must use its own
+    # timezone (Europe/Paris is a full hour ahead of Lisbon year-round, not
+    # a DST-only difference) rather than silently inheriting Portugal's.
+    writer, client = make_writer(timezone_id="Europe/Paris")
+    scraped = ScrapedPrice(
+        price=1.0,
+        regular_price=1.0,
+        price_per_unit=1.0,
+        unit_basis="EUR/kg",
+        is_promotion=False,
+        promotion_label=None,
+        in_stock=True,
+        raw_payload={},
+    )
+
+    writer.upsert_snapshot(listing_id=1, scraped=scraped)
+
+    call = client.tables["price_snapshots"].calls[0]
+    assert call.payload["scrape_date"] == scrape_date_for_timezone("Europe/Paris")
 
 
 def test_listing_already_captured_today_true_when_row_exists():

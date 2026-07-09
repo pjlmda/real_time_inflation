@@ -12,32 +12,40 @@ from zoneinfo import ZoneInfo
 
 from scraper.models import CategoryStats, Listing, RunResult, ScrapedPrice
 
-LISBON_TZ = ZoneInfo("Europe/Lisbon")
+# Portugal is WET/WEST (UTC+0/+1); most of the rest of Western Europe,
+# including France, is CET/CEST (UTC+1/+2) — a genuine one-hour gap
+# year-round, not a DST rounding quirk. scrape_date must be pinned to each
+# *store's own* timezone (StoreConfig.timezone_id), not a single global
+# constant — a French store inheriting Portugal's midnight would get its
+# day boundary silently wrong (docs/france-expansion-plan.md §3.3).
+DEFAULT_TIMEZONE_ID = "Europe/Lisbon"
 
 
-def lisbon_scrape_date() -> str:
-    """`scrape_date` must be a fixed Europe/Lisbon calendar date regardless of
-    which machine/timezone runs the code — `date.today()` uses the ambient
-    system timezone, which differs between a local dev machine and GitHub
-    Actions' UTC runners and silently breaks the one-row-per-listing-per-day
-    idempotency guarantee across environments."""
-    return datetime.now(LISBON_TZ).date().isoformat()
+def scrape_date_for_timezone(timezone_id: str = DEFAULT_TIMEZONE_ID) -> str:
+    """`scrape_date` must be a fixed calendar date in the store's own
+    timezone regardless of which machine runs the code — `date.today()` uses
+    the ambient system timezone, which differs between a local dev machine
+    and GitHub Actions' UTC runners and silently breaks the
+    one-row-per-listing-per-day idempotency guarantee across environments."""
+    return datetime.now(ZoneInfo(timezone_id)).date().isoformat()
 
 
-def is_same_lisbon_day(iso_timestamp: str) -> bool:
+def is_same_day(iso_timestamp: str, timezone_id: str = DEFAULT_TIMEZONE_ID) -> bool:
     """Whether a stored UTC timestamp (e.g. `scrape_runs.started_at`) falls on
-    today's Lisbon calendar date — used to decide if a same-day retry should
-    skip a store that was blocked earlier today, without a `scrape_date`
-    column on `scrape_runs` itself to compare against directly."""
+    today's calendar date in the given timezone — used to decide if a
+    same-day retry should skip a store that was blocked earlier today,
+    without a `scrape_date` column on `scrape_runs` itself to compare
+    against directly."""
     dt = datetime.fromisoformat(iso_timestamp)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(LISBON_TZ).date().isoformat() == lisbon_scrape_date()
+    return dt.astimezone(ZoneInfo(timezone_id)).date().isoformat() == scrape_date_for_timezone(timezone_id)
 
 
 class SupabaseWriter:
-    def __init__(self, client):
+    def __init__(self, client, timezone_id: str = DEFAULT_TIMEZONE_ID):
         self.client = client
+        self.timezone_id = timezone_id
 
     def get_store_id(self, slug: str) -> int:
         resp = self.client.table("stores").select("id").eq("slug", slug).limit(1).execute()
@@ -54,7 +62,7 @@ class SupabaseWriter:
         return [Listing(**row) for row in resp.data]
 
     def listing_already_captured_today(self, listing_id: int) -> bool:
-        today = lisbon_scrape_date()
+        today = scrape_date_for_timezone(self.timezone_id)
         resp = (
             self.client.table("price_snapshots")
             .select("id")
@@ -68,7 +76,7 @@ class SupabaseWriter:
     def upsert_snapshot(self, listing_id: int, scraped: ScrapedPrice) -> None:
         row = {
             "listing_id": listing_id,
-            "scrape_date": lisbon_scrape_date(),
+            "scrape_date": scrape_date_for_timezone(self.timezone_id),
             "scraped_at": datetime.now(timezone.utc).isoformat(),
             "price": scraped.price,
             "regular_price": scraped.regular_price,
@@ -140,7 +148,7 @@ class SupabaseWriter:
         return resp.data[0]["id"]
 
     def category_already_captured_today(self, store_id: int, category_id: int) -> bool:
-        today = lisbon_scrape_date()
+        today = scrape_date_for_timezone(self.timezone_id)
         resp = (
             self.client.table("category_observations")
             .select("id")
@@ -158,7 +166,7 @@ class SupabaseWriter:
         row = {
             "store_id": store_id,
             "category_id": category_id,
-            "scrape_date": lisbon_scrape_date(),
+            "scrape_date": scrape_date_for_timezone(self.timezone_id),
             "n_products": stats.n_products,
             "median_price_per_unit": stats.median,
             "mean_price_per_unit": stats.mean,

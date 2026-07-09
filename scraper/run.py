@@ -51,7 +51,7 @@ async def _main(store_slug: str, mode: str, dry_run: bool) -> int:
     supabase_client = create_client(
         os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"]
     )
-    db = SupabaseWriter(supabase_client)
+    db = SupabaseWriter(supabase_client, timezone_id=config.timezone_id)
 
     if dry_run:
         if mode == "basket":

@@ -42,11 +42,19 @@ export default function Dashboard({ health, latest, categories, stores, fuel, se
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold">Portugal Real-Time Inflation Tracker</h1>
-        <p className="text-sm text-neutral-400">
-          Daily grocery &amp; fuel inflation, methodologically aligned with INE/Eurostat HICP.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Portugal Real-Time Inflation Tracker</h1>
+          <p className="text-sm text-neutral-400">
+            Daily grocery &amp; fuel inflation, methodologically aligned with INE/Eurostat HICP.
+          </p>
+        </div>
+        <a
+          href="/personalize"
+          className="shrink-0 rounded border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800"
+        >
+          Personalize my rate
+        </a>
       </header>
 
       <CoverageBanner health={health} />

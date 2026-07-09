@@ -75,6 +75,15 @@ interface ScrapeRunSummary {
   blocked: boolean;
 }
 
+export interface BulkSeriesPoint {
+  as_of_date: string;
+  index_value: number | null;
+  index_value_ma7: number | null;
+}
+
+// Keyed by ecoicop2_code — see /api/inflation/series/bulk.
+export type CategorySeriesBulk = Record<string, BulkSeriesPoint[]>;
+
 export interface HealthResponse {
   healthy: boolean;
   stores: Record<string, { basket: ScrapeRunSummary | null; category: ScrapeRunSummary | null }>;

@@ -184,6 +184,34 @@ class SupabaseReader:
             for cat in categories
         ]
 
+    # --- /inflation/series/bulk ---
+
+    def get_category_series_bulk(self, family: str, period: str, basis: str) -> dict[str, list[dict]]:
+        # One round trip for every category's series, instead of the N
+        # separate /inflation/series calls a personalized-weights view would
+        # otherwise need (see docs/future-roadmap.md Part 1).
+        resp = (
+            self.client.table("inflation_metrics")
+            .select("dimension_value, as_of_date, index_value, index_value_ma7")
+            .eq("dimension", "category")
+            .eq("index_family", family)
+            .eq("period", period)
+            .eq("price_basis", basis)
+            .order("as_of_date")
+            .execute()
+            .data
+        )
+        by_code: dict[str, list[dict]] = {}
+        for row in resp:
+            by_code.setdefault(row["dimension_value"], []).append(
+                {
+                    "as_of_date": row["as_of_date"],
+                    "index_value": row["index_value"],
+                    "index_value_ma7": row["index_value_ma7"],
+                }
+            )
+        return by_code
+
     # --- /stores ---
 
     def get_stores(self) -> list[dict]:

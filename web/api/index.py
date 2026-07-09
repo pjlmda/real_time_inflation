@@ -50,6 +50,17 @@ def inflation_series(
     return get_reader().get_series(family, dimension, value, period, basis)
 
 
+@app.get("/api/inflation/series/bulk")
+def inflation_series_bulk(
+    family: str = Query("fixed_basket", pattern="^(fixed_basket|category_avg)$"),
+    period: str = Query("daily", pattern="^(daily|weekly|monthly|yearly)$"),
+    basis: str = Query("headline", pattern="^(headline|effective)$"),
+):
+    if family == "category_avg" and basis != "effective":
+        raise HTTPException(400, "category_avg only has price_basis='effective'")
+    return get_reader().get_category_series_bulk(family, period, basis)
+
+
 @app.get("/api/categories")
 def categories():
     return get_reader().get_categories()

@@ -1,5 +1,6 @@
 import type {
   CategoryRow,
+  CategorySeriesBulk,
   FuelRow,
   HealthResponse,
   LatestOverallResponse,
@@ -48,4 +49,17 @@ export function getSeries(params: {
     basis: params.basis ?? "headline",
   });
   return apiGet<SeriesPoint[]>(`/api/inflation/series?${query.toString()}`);
+}
+
+export function getSeriesBulk(params: {
+  family?: "fixed_basket" | "category_avg";
+  period?: "daily" | "weekly" | "monthly" | "yearly";
+  basis?: "headline" | "effective";
+}): Promise<CategorySeriesBulk> {
+  const query = new URLSearchParams({
+    family: params.family ?? "fixed_basket",
+    period: params.period ?? "daily",
+    basis: params.basis ?? "headline",
+  });
+  return apiGet<CategorySeriesBulk>(`/api/inflation/series/bulk?${query.toString()}`);
 }

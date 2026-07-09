@@ -100,7 +100,10 @@ export default function PersonalizeDashboard({
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold">Personalize your inflation rate</h1>
+        <a href="/" className="text-sm text-neutral-400 hover:text-neutral-200">
+          ← Back to dashboard
+        </a>
+        <h1 className="mt-2 text-2xl font-semibold">Personalize your inflation rate</h1>
         <p className="text-sm text-neutral-400">
           Adjust each category&apos;s weight to match your own household&apos;s spending, instead of the
           average Portuguese household HICP uses.

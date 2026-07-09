@@ -5,10 +5,20 @@ export default function CategoryBreakdown({ categories }: { categories: Category
 
   return (
     <section className="rounded-lg border border-neutral-800 p-5">
-      <h2 className="text-lg font-medium">ECOICOP breakdown</h2>
-      <p className="mt-1 text-sm text-neutral-400">
-        Fixed-basket index per category, weighted by HICP importance.
-      </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-medium">ECOICOP breakdown</h2>
+          <p className="mt-1 text-sm text-neutral-400">
+            Fixed-basket index per category, weighted by HICP importance.
+          </p>
+        </div>
+        <a
+          href="/personalize"
+          className="shrink-0 rounded border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800"
+        >
+          Personalize my rate
+        </a>
+      </div>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left text-neutral-500">

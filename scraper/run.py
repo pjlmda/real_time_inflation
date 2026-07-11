@@ -34,7 +34,9 @@ SCRAPERS = {
     "auchan-fr-paris": AuchanFranceScraper,
     "auchan-fr-marseille": AuchanFranceScraper,
     "lidl-fr": LidlFranceScraper,
-    "wegmans-us": WegmansScraper,
+    "wegmans-us-medford": WegmansScraper,
+    "wegmans-us-nyc": WegmansScraper,
+    "wegmans-us-fairfax": WegmansScraper,
     # lidl (Portugal): added once the widened pilot is verified (spec §11).
 }
 

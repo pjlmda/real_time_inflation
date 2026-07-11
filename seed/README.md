@@ -327,12 +327,7 @@ but missed for this one Wegmans pair.
 **Not yet confirmed live**: promo/regular-price detection
 (`is_promotion`/`regular_price` default to "no promotion" — no live
 promoted product was found across 14 category listing pages or the site's
-Digital Coupons page, which turned out to be sign-in-gated). Also not yet
-resolved: whether Wegmans' default store location ("Medford", shown
-without any explicit interaction) is a fixed site-wide default or
-IP-geolocation-based — consistent across three research sessions with
-different `timezone_id` contexts, but not tested against a real GitHub
-Actions runner IP.
+Digital Coupons page, which turned out to be sign-in-gated).
 
 `python -m scraper.run --store wegmans-us --mode basket` ran for real:
 **58/58 listings, 100% coverage.** Not yet in `.github/workflows/scrape.yml`'s
@@ -348,4 +343,44 @@ Produce items (fruit/veg) carry a zero-padded PLU-style code in the same
 field rather than a true 12-digit UPC-A, since that's what Wegmans itself
 uses for weight-sold produce — stored as-is.
 
-Basket now at 220 products / 263 listings total (up from 162/205).
+### Wegmans, second pass same day: three locations, not one
+
+The disclosed "is Medford's default a fixed value or IP-geolocation-based"
+risk from the paragraph above turned out to matter: querying the same
+product (Vitamin D Whole Milk) at different Wegmans store numbers directly
+confirmed **real, substantial price variation by location** —
+$2.99/gallon at Medford, NY vs. $3.99/gallon in Manhattan, a 33% spread —
+the same class of finding as Auchan France's Paris-vs-Marseille discovery.
+Per explicit instruction to find a solution, `scraper/wegmans.py` was
+rebuilt entirely on `api.digitaldevelopment.wegmans.cloud`'s public JSON
+commerce API (discovered while tracing how the site's own location
+selector works) rather than DOM-scraping — it takes a `storeNumber` query
+parameter directly, so tracking multiple locations no longer needs any
+session/UI automation at all. `robots.txt` on that subdomain 404s (no
+restriction); it's the exact same call the site's own frontend makes,
+unauthenticated, to render the page every visitor sees.
+
+Three locations now tracked and seeded: `wegmans-us-medford` (renamed from
+the original `wegmans-us`, `stores.id=64` preserved so no listing
+reference broke), `wegmans-us-nyc` (Manhattan), `wegmans-us-fairfax`
+(Fairfax, VA — genuine out-of-NY-state market). All three seeded with the
+same 58 products (379 listings total for Wegmans now, up from 58).
+`wegmans-us-nyc` ran for real: **55/58 listings, 94.8% coverage**;
+`wegmans-us-fairfax` too: **54/58, 93% coverage** — a small, overlapping
+set of products (3 fresh pork items at both, plus 18-count eggs at
+Fairfax) confirmed genuinely not carried at those specific stores
+(`isSoldAtStore: false`, `price_inStore: null` in the API response), the
+same "not every location carries every listing" gap already documented
+for Auchan France, not a bug. The rebuild also incidentally surfaced that
+`price_delivery` runs ~15-17% higher than `price_inStore` at every store
+checked — confirmed the scraper was already reading the correct basis
+(in-store, matching every other country in this project) rather than an
+accident.
+
+Full technical writeup (the API discovery, the three real reasons for a
+full rebuild rather than a location-count bump, the promo/loyalty fields
+this newly exposes) is in `docs/us-expansion-plan.md` §8, not duplicated
+here.
+
+Basket now at 220 products / 379 listings total (up from 162/205 before
+Wegmans, 263 before the multi-location rebuild).

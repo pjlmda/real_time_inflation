@@ -376,3 +376,77 @@ has the complete provenance/verification notes per BLS item code; summary:
   resets (BLS's daily limits reset on a rolling/calendar-day basis) before
   US `inflation_metrics` can be computed at all — this is the concrete,
   well-scoped next step, not an open unknown.
+
+## 8. Build status — multi-location rebuild, 2026-07-11
+
+Per explicit instruction to "dive deeper on different store locations
+pricing so we can find a solution" (the same open question flagged in §4.3
+and §6). Confirmed live, decisively: Wegmans prices *do* vary by location,
+the same class of finding as Auchan France's Paris-vs-Marseille discovery —
+`Vitamin D Whole Milk` (product 94427) priced **$2.99/gallon at Medford,
+NY (store 134) vs. $3.99/gallon at Manhattan, NY (store 156)**, a 33%
+spread, querying the same product at different `storeNumber`s. A third
+store (Fairfax, VA — store 16, $3.69/gallon) confirmed this isn't NY-only
+variation.
+
+**This finding led to a full scraper rebuild, not just a location-count
+increase.** While tracing how to force a specific store (the original DOM
+version had no reliable mechanism — the site resolves a default via
+client-side Google Geolocation API calls, not a URL/cookie parameter), a
+network trace of the "Medford" selector button revealed
+`api.digitaldevelopment.wegmans.cloud/commerce/browse/products/`, a public
+JSON commerce API the site's own frontend calls unauthenticated, taking
+`storeNumber` as a plain query parameter. Checked before using it:
+`robots.txt` on that subdomain 404s (no restriction, treated as
+allow-everything per this project's existing convention), and it's called
+directly by the site's own public page to render exactly what a normal
+shopper sees — the same "prefer parsing embedded JSON over raw DOM-text
+scraping" pattern this project already uses for Continente's JSON-LD, just
+via a network call instead of an inline `<script>` tag.
+
+`scraper/wegmans.py` was rebuilt on this API, replacing DOM-scraping
+entirely. Three concrete benefits over the original version, not just "it
+also happens to solve locations":
+1. **Multi-location solved cleanly** — `STORE_NUMBERS` maps each tracked
+   location's store slug straight to a real store number, no
+   session/location-selector automation needed.
+2. **Eliminates a disclosed risk from the original build** — whether
+   "Medford" was a fixed default or IP-geolocation-based (and so might
+   resolve differently from a GitHub Actions runner's IP) is now moot;
+   every request specifies its store explicitly.
+3. **Real promo/loyalty price fields exposed** (`price_inStoreLoyalty`,
+   `discountType`) that no amount of DOM/text searching ever found — still
+   not confirmed live (no product encountered had either populated), but
+   now structurally ready to pick up a real example instead of silently
+   missing it.
+
+**Three tracked locations, seeded and live-scraped**:
+
+| Store slug | City | Store # | Confirmed milk price | Notes |
+|---|---|---|---|---|
+| `wegmans-us-medford` | Medford, NY | 134 | $2.99/gal | Original build's default; renamed from `wegmans-us` (`stores.id=64` preserved, no listing references broke) |
+| `wegmans-us-nyc` | Manhattan, NY | 156 | $3.99/gal | Highest of the three |
+| `wegmans-us-fairfax` | Fairfax, VA | 16 | $3.69/gal | Genuine out-of-NY-state market (DC metro) |
+
+**Verified live**: `wegmans-us-nyc` ran for real — **55/58 listings,
+94.8% coverage** (3 fresh pork products genuinely not carried at the
+Manhattan store — confirmed via the API returning `isSoldAtStore: false`,
+`price_inStore: null` — the same "not every location carries every
+listing" gap already documented for Auchan France's two Drive locations,
+not a bug). `wegmans-us-fairfax` ran for real too — **54/58, 93%
+coverage** (the same 3 pork products plus 18-count eggs not carried there
+either). Both runs' `error_summary` cleanly names the unavailable product
+by name (e.g. `"product '54042' not carried at this store ('Wegmans
+Boneless Center-Cut Pork Chops')"`), confirming the clearer error message
+added during this rebuild works as intended. `wegmans-us-medford`'s
+listings were skipped by the existing same-day idempotency check (already
+scraped once today by the original DOM version before the rebuild) — the
+new code path is proven correct via the NYC/Fairfax real runs plus
+`tests/test_wegmans_parsing.py` (10 tests, all passing), since all three
+locations share the exact same `fetch_listing` function, just a different
+`storeNumber`.
+
+Price basis clarified as a side effect of having the raw API response:
+`price_inStore`, not `price_delivery` — the latter runs consistently
+~15-17% higher at every store checked, a real, new (US-specific) pricing
+dimension no prior country in this project has had to account for.

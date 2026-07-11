@@ -6,20 +6,35 @@ this mirrors the same live-verification-heavy research phase every other
 country got before any scraper was built, including the ones that ended up
 shelved (`docs/germany-expansion-plan.md`).
 
-**Bottom line up front**: the sourcing side looks at least as hard as
-Germany's — of 16 chains checked live, the top 4 by market share
-(Walmart, Kroger, Costco, Target) are all confirmed behind enterprise-grade
-bot mitigation, and the one structurally promising lead (Aldi US) explicitly
-disallows all crawling in its own `robots.txt`, which rules it out under
-this project's own non-negotiable "respect robots.txt" rule regardless of
-whether it's technically scrapable. Two chains (H-E-B, Wegmans) are
-inconclusive and would need more investigation before a yes/no call. On the
-weights side, this doc **corrects an assumption in `CLAUDE.md`**: a real,
-official BLS crosswalk to COICOP/HICP does exist (not "no clean crosswalk"),
-refreshed annually — but with its own real access caveats (see §3). Net: not
-a clean "no" the way Germany turned out to be, but not a green light either.
-Recommend more targeted investigation (H-E-B/Wegmans depth, the BLS weights
-API question) before any code, not a decision to build or to shelve yet.
+**Bottom line up front (updated after a second research pass, same day)**:
+**Wegmans is a real, live-confirmed, unblocked lead** — not bot-blocked
+(zero enterprise bot-mitigation cookies across a full session), the
+cleanest `robots.txt` of any of the 17 chains checked (`Allow: /`,
+unconditional), real structured per-product prices *and* price-per-unit,
+stable PDP URLs, and a real UPC/barcode embedded in page data — better
+EAN-equivalent access than either Lidl France or Lidl Germany got. It's a
+regional chain (Northeast US only), so a US launch on Wegmans alone would
+be a narrower slice than Portugal's, the same honest framing already
+applied to Auchan-only France. H-E-B is now confirmed **blocked** (an
+explicit anti-bot error page, not the inconclusive blank shell first
+recorded). The other 15 chains checked are unchanged: top 4 by market share
+(Walmart, Kroger, Costco, Target) all confirmed behind enterprise bot
+mitigation; Aldi US has a real catalog but its own `robots.txt` disallows
+all crawling, ruling it out by policy regardless of technical scrapability.
+On weights: BLS does publish a real COICOP/HICP crosswalk (correcting
+`CLAUDE.md`'s prior "no clean crosswalk" claim) — and a second pass
+localized exactly where the wall is: `api.bls.gov`'s JSON API works,
+unauthenticated, confirmed live; but **both** `www.bls.gov` (the site
+hosting R-COICOP/R-HICP `.xlsx` files) **and** `download.bls.gov` (BLS's
+separate bulk flat-file service) are Akamai-blocked, and `download.bls.gov`'s
+block page explicitly states BLS's own anti-automation policy in writing.
+Whether the specific weight/"relative importance" figures are exposed
+through the open `api.bls.gov` JSON endpoint (BLS says they should be, as
+"aspect metadata," added November 2024) is the one remaining unconfirmed
+step — needs a registered API key to test the exact request format. Net:
+Wegmans is a genuine, promising candidate worth a real DOM/pricing spike
+next; the weights side needs one more concrete API test, not abandoned
+research.
 
 ---
 
@@ -58,15 +73,16 @@ Sources: [Statista — Grocery retailers market share U.S. 2025](https://www.sta
 | **Aldi US** | **Not bot-blocked** — real category pages (`/store/aldi/pages/dairy-and-eggs` etc.) load with genuine prices, location-aware ("Shopping at ALDI - BAT 18 - Geneva, IL", auto-detected delivery window). Structurally the strongest lead of the sixteen. **But its `robots.txt` ends with a catch-all `User-Agent: * / Disallow: /`** — only specific named crawlers (Googlebot, Bingbot, etc.) get an explicit `Allow:`. A generic scraper isn't permitted by the site's own policy; impersonating an allow-listed crawler's user-agent to get around that would be exactly the kind of evasion `CLAUDE.md`'s anti-bot section rules out. This is a clean, explicit "no" from the retailer itself, not a technical obstacle. |
 | **Sprouts Farmers Market** | 200 OK, no block markers on a single probe — not deeply investigated beyond that. |
 | **Publix** | Homepage/search probes kept redirecting to a generic "International" landing page rather than real search results — inconclusive, the correct US storefront entry point wasn't found in this pass. `robots.txt` returned empty. |
-| **H-E-B** | `robots.txt` is genuinely permissive (`Disallow: /category/*?*` and `/cart/` only). But every real page load (homepage and search) returns a consistent, tiny 489-character body with no title and no visible `$` — looks like a client-rendered shell that isn't populating, possibly a silent bot-detection response rather than a real block page. **Inconclusive** — would need more investigation (longer render wait, checking for a JS challenge specifically) before ruling in or out. |
-| **Wegmans** | `robots.txt` explicitly says `Allow: /` for all bots. `domcontentloaded` loads fine (real title "Wegmans", 6KB of real content) but a `networkidle` wait times out — likely a chatty SPA with constant background polling rather than a block, but not confirmed either way. **Inconclusive**, second-strongest remaining lead after H-E-B. |
+| **H-E-B** | **Confirmed blocked**, on a second, deeper pass. The earlier "489-byte blank shell" turned out to be an explicit anti-automation error page once the raw HTML was inspected directly: `{"errorCode": "15", "description": "This page could not load. It looks like an ad blocker, antivirus software, VPN, or firewall may be causing an issue...", ...}`, served with an `x-iinfo` edge-proxy header — textbook bot-mitigation messaging (blaming client-side tools rather than stating a block), just formatted as JSON instead of a CAPTCHA page. `robots.txt` being permissive doesn't matter once the edge itself is rejecting the request. |
+| **Wegmans** | **Confirmed live, not bot-blocked, real working catalog.** `robots.txt`: `Allow: /` unconditional (cleanest of all 17 chains), plus a sitemap and an explicit `Content-Signal: search=yes` header. A full session (homepage → category → leaf subcategory → product-detail page) rendered real content throughout: the homepage itself surfaced a real priced product ("Wegmans Greek-Style Turkey Patties, 12 ounce, $8.99/ea, $0.75/ounce"); the `Dairy` → `Milk` leaf category showed a real product grid with price *and* price-per-unit for every item (e.g. "Wegmans Vitamin D Whole Milk, 1 gallon, $2.99/ea, $2.99/gallon"); a direct product-detail page (`/shop/product/94427-Vitamin-D-Whole-Milk`) loaded cleanly with a **real UPC embedded in page JSON** (`"upc":["00077890944271"]`) — better barcode access than either Lidl France or Lidl Germany got. Zero enterprise bot-mitigation cookies (`_abck`, `bm_sz`, `_pxhd`, `_px3`, `incap_ses`, `reese84`, `__cf_bm`, `datadome`) appeared anywhere across the session. A store-location selector exists (defaulted to "Medford" — a real US-scoped location, not obviously IP-geolocation-only, since a real clickable modal with `aria-haspopup="dialog"` sits behind it) — the interaction wasn't fully driven through in this pass, but the mechanism is confirmed present, the same shape as Auchan France's Drive-location flow. |
 
-Pattern: the same shape as France and Germany — the biggest chains by
-market share run enterprise-grade bot mitigation (Akamai at Costco,
-PerimeterX at Target, Cloudflare at WinCo, unnamed challenge systems at
-Walmart/Meijer), and the two genuinely open doors found so far (H-E-B,
-Wegmans) are both unconfirmed rather than clean passes — unlike Lidl in
-France/Germany, which was unambiguously reachable on the first real check.
+Pattern: the same shape as France and Germany for the market leaders —
+Akamai at Costco, PerimeterX at Target, Cloudflare at WinCo, an explicit
+bot-mitigation error page at H-E-B, unnamed challenge systems at
+Walmart/Meijer — but **Wegmans breaks the pattern**: a real, regional
+(Northeast US) chain that is genuinely open, the same way Lidl turned out
+to be in both France and Germany, just a smaller chain than either Lidl
+market position.
 
 ---
 
@@ -112,25 +128,49 @@ Real caveats found, live, that keep this from being a simple "point
   returns real JSON time-series data with no API key needed for v1 (v2 adds
   a free registration key for higher limits). This is architecturally the
   same shape as Eurostat's API and is genuinely promising.
-- **What's still unconfirmed**: whether the actual *expenditure weights*
-  (the "relative importance of components" figures — the BLS analogue of
-  Eurostat's `hicp_weight`) are queryable through `api.bls.gov`'s
-  time-series endpoints, or only published as the (Akamai-blocked, and see
-  next point) annual `.xlsx`/PDF report. This needs to be resolved with a
-  real, live check against the API's series catalog before any
-  `weights/bls.py` gets written — not assumed either way.
+- **Second pass, same day — the wall is precisely `bls.gov`'s and
+  `download.bls.gov`'s edges, not BLS's data policy.** BLS added "aspect
+  metadata" (seasonal factors, relative importance/weights, standard
+  error, etc.) tied to regular CPI series IDs in November 2024, explicitly
+  described as available two ways: bulk flat files, or the public API. The
+  bulk flat-file route was checked live and is a dead end —
+  `download.bls.gov/pub/time.series/cu/` (a *separate* subdomain from the
+  main website, dedicated to bulk downloads) returns `403`,
+  `server: AkamaiGHost`, with a block page that **explicitly states BLS's
+  own anti-automation policy in writing**: *"Automated retrieval programs
+  (commonly called 'robots' or 'bots') can cause delays and interfere with
+  other customers' timely access to information. Therefore, bot activity
+  that doesn't conform to BLS usage policy is prohibited."* That's a
+  clean, stated policy line, not just a technical obstacle — respecting it
+  isn't optional under this project's own rules even if a technical
+  bypass existed.
+- **What's still unconfirmed**: whether that same aspect/relative-importance
+  data is retrievable through the *other* channel BLS names —
+  `api.bls.gov`'s JSON time-series endpoint, already confirmed live and
+  open for regular index values (§ above). The aspect-metadata request
+  format wasn't tested against the live API in this pass (BLS's own
+  documentation suggests it may require a registered v2 API key, which
+  wasn't obtained here) — this is the one concrete, well-scoped next step,
+  not an open-ended unknown.
 - **Publication of the R-COICOP `.xlsx` was paused in December 2024**,
   per BLS's own site, "to be resumed when resources are available" — a
   live currency risk. This project's whole weights model depends on a
   yearly-refresh source that's actually maintained; a paused research
-  series is a real reason for caution, not just an inconvenience.
+  series is a real reason for caution, not just an inconvenience. This
+  doesn't affect the aspect-metadata/relative-importance data specifically
+  (a separate, apparently still-active data product, added in November
+  2024, after the R-COICOP pause) — worth keeping the two straight rather
+  than treating one pause as evidence about the other.
 
-**Net on weights**: less bleak than `CLAUDE.md` currently states — there is
-a real, official crosswalk, and BLS does run a genuine, no-scraping-needed
-public API — but "does the API expose the weight figures specifically, and
-is the underlying research series still being maintained" are both open,
-unresolved questions that need their own live-verification pass before
-this stops being a gap.
+**Net on weights**: better than `CLAUDE.md` previously stated — there is a
+real, official crosswalk, BLS runs a genuine, no-scraping-needed public API
+that's already confirmed live and working, and the specific place the
+weight data is blocked (`bls.gov`, `download.bls.gov`) is now precisely
+identified rather than a vague "the whole site might not work." The one
+remaining unresolved step — register a free `api.bls.gov` v2 key and test
+the aspect-metadata request format against a real food-category series —
+is small, concrete, and was the natural next action, not attempted in this
+pass for lack of a registered key.
 
 ### 3.2 Multi-timezone is a genuinely new complexity class
 
@@ -172,41 +212,45 @@ already works.
 
 ## 4. What would need to happen before any code
 
-1. **Resolve the `api.bls.gov` weights-granularity question** — confirm
-   live whether relative-importance/expenditure-weight figures are
-   available through the JSON API, or only through the paused/blocked
-   `.xlsx` report. This determines whether `weights/bls.py` is even
-   buildable the way `weights/eurostat.py` is.
-2. **Deeper investigation of H-E-B and Wegmans** specifically — both
-   passed the robots.txt check and a basic reachability check but neither
-   was conclusively confirmed to have a real, non-blocked, per-product
-   catalog the way Lidl was for France/Germany within a single research
-   pass. This is the most promising open thread, not a dead end — the
-   blank-shell H-E-B result and the Wegmans `networkidle` timeout both need
-   a dedicated DOM/pricing spike (longer render waits, checking a real
-   product-detail page directly rather than just home/search) before
-   either gets ruled in or out.
-3. **A live single-day, multi-city price comparison** on whatever
-   chain(s) survive steps 1-2, mirroring the Auchan France Paris/Marseille
-   discovery, to settle whether US online grocery pricing is national or
-   regional before committing to a one-location-per-store or
-   multiple-locations-per-store model.
-4. **Re-verify the "supermarket-buyable" COICOP subset** against whatever
-   chain(s) survive, the same live-verification discipline as every
+1. **Register a free `api.bls.gov` v2 API key and test the aspect-metadata
+   request format** against a real food-category series (e.g. the "food
+   at home" strata) to confirm relative-importance/weight figures are
+   actually retrievable that way. This determines whether `weights/bls.py`
+   is buildable the way `weights/eurostat.py` is — the one concrete,
+   well-scoped step left on the weights side.
+2. **A proper DOM/pricing spike on Wegmans**, the same discipline every
+   other store in this project got before a scraper got written: confirm
+   the store-location selector flow end to end (does explicit ZIP/store
+   entry work reliably, or does it silently fall back to IP geolocation
+   that might behave oddly from a GitHub Actions runner's IP?), confirm
+   price-block selectors are stable across multiple real products, and
+   check for a promo/regular-price pattern the way every other store's
+   spike did.
+3. **A live single-day, multi-city price comparison** on Wegmans — it's
+   regional (Northeast US: NY, PA, NJ, MA, VA, MD, NC, DC and others), so
+   the open question isn't "national vs. regional" the way it was for
+   Walmart/Target, but whether price varies *within* that footprint
+   (e.g. NYC vs. a smaller upstate NY market) the way Auchan France's
+   Paris vs. Marseille turned out to — checked live, not assumed.
+4. **Re-verify the "supermarket-buyable" COICOP subset** against Wegmans'
+   real assortment, the same live-verification discipline as every
    category-growth round in `seed/README.md`.
+5. **Not further pursued for now**: H-E-B (confirmed blocked), Walmart/
+   Kroger/Costco/Target/Albertsons/Safeway/Trader Joe's/Meijer/WinCo (all
+   confirmed blocked), Aldi US (ruled out by its own `robots.txt`). Publix
+   and Sprouts got only a shallow check and could be revisited later if
+   Wegmans alone proves too narrow.
 
 ## 5. Honest framing
 
-This is not a "Germany" (a clean no, exhausted and shelved) and not a
-"France" (real chains, real access, straightforward build once found). It
-sits in between: genuine bot-mitigation coverage across the market-leading
-chains that's at least as heavy as Germany's, one clean disqualification by
-policy (Aldi US's own `robots.txt`), and two unresolved leads (H-E-B,
-Wegmans) that would need real spike work — the same kind of live DOM/price
-verification every other store in this project got — before a genuine
-build-or-shelve call can be made. The weights/methodology side is better
-than `CLAUDE.md` currently states, but not solved: a real official
-crosswalk exists, refreshed annually, but whether it's reachable
-programmatically without hitting Akamai, and whether it's still being
-maintained past its December 2024 publication pause, are both open,
-unresolved questions.
+Wegmans is a real, live-confirmed, unblocked lead — the same shape of
+finding that Lidl was for both France and Germany, just for a smaller,
+Northeast-US-only regional chain rather than a national one. A US launch
+on Wegmans alone would start narrower than Portugal's three-store setup,
+the same "narrower slice" framing already applied to Auchan-only France —
+worth stating plainly, not implying broader US coverage than exists. This
+is closer to a "France" outcome (a real, reachable chain found, ready for
+a proper build spike) than a "Germany" one (exhausted, shelved) — though
+one more concrete step (the BLS weights-API key test) is still open before
+committing to a full build, since the whole point of this project's
+methodology is HICP-comparable weights, not just any price index.

@@ -3,9 +3,9 @@ from scraper.models import RunResult, ScrapedPrice
 from tests.fake_supabase import FakeSupabaseClient
 
 
-def make_writer(timezone_id="Europe/Lisbon"):
+def make_writer(timezone_id="Europe/Lisbon", currency="EUR"):
     client = FakeSupabaseClient()
-    return SupabaseWriter(client, timezone_id=timezone_id), client
+    return SupabaseWriter(client, timezone_id=timezone_id, currency=currency), client
 
 
 def test_upsert_snapshot_sends_correct_row_and_conflict_key():
@@ -56,6 +56,30 @@ def test_upsert_snapshot_uses_the_writers_own_configured_timezone():
 
     call = client.tables["price_snapshots"].calls[0]
     assert call.payload["scrape_date"] == scrape_date_for_timezone("Europe/Paris")
+
+
+def test_upsert_snapshot_uses_the_writers_own_configured_currency():
+    # The bug this generalizes away: currency used to be hardcoded 'EUR' in
+    # upsert_snapshot regardless of which store's writer was doing the
+    # writing, never caught because every store built before Wegmans (USD)
+    # was EUR-denominated - a US store's writer must use its own currency
+    # rather than silently mislabeling every price_snapshots row as EUR.
+    writer, client = make_writer(currency="USD")
+    scraped = ScrapedPrice(
+        price=2.99,
+        regular_price=2.99,
+        price_per_unit=2.99,
+        unit_basis="USD/gallon",
+        is_promotion=False,
+        promotion_label=None,
+        in_stock=True,
+        raw_payload={},
+    )
+
+    writer.upsert_snapshot(listing_id=1, scraped=scraped)
+
+    call = client.tables["price_snapshots"].calls[0]
+    assert call.payload["currency"] == "USD"
 
 
 def test_listing_already_captured_today_true_when_row_exists():

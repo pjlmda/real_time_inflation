@@ -20,6 +20,7 @@ class StoreConfig:
     delay_seconds_max: float
     locale: str
     timezone_id: str
+    currency: str
 
 
 def load_store_config(slug: str) -> StoreConfig:
@@ -39,5 +40,11 @@ def load_store_config(slug: str) -> StoreConfig:
                 delay_seconds_max=entry.get("delay_seconds_max", 5),
                 locale=entry.get("locale", "pt-PT"),
                 timezone_id=entry.get("timezone_id", "Europe/Lisbon"),
+                # Every store to date has been EUR-denominated, which is why
+                # price_snapshots.currency was hardcoded 'EUR' in
+                # scraper/db.py until Wegmans (USD) exposed the bug -
+                # defaulting to EUR here preserves existing behavior for
+                # every store whose config entry doesn't set this key.
+                currency=entry.get("currency", "EUR"),
             )
     raise ValueError(f"No store config found for slug={slug!r} in {CONFIG_PATH}")

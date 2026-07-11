@@ -105,3 +105,31 @@ stores:
     locale: fr-FR
     timezone_id: Europe/Paris
     country: FR
+
+  # United States (docs/us-expansion-plan.md) — 17 chains checked live;
+  # Wegmans is the one genuinely open door (cleanest robots.txt of any of
+  # them, zero enterprise bot-mitigation cookies across a full session).
+  # Regional Northeast-US chain (114 stores, NY/PA/VA/NJ/MD/MA/NC/CT/DE/DC),
+  # not national — the same "narrower slice than Portugal" framing already
+  # applied to Auchan-only France. Prices show directly with no explicit
+  # location-confirmation flow, unlike Auchan France's Drive postcode step —
+  # a store location ("Medford") appears by default and was consistent
+  # across sessions with different timezone_id contexts, but whether that's
+  # a fixed site-wide default or IP-geolocation-based (and so could differ
+  # from a GitHub Actions runner's real IP) wasn't fully confirmed; a real,
+  # disclosed risk, not assumed away. Research branch only (research/us-
+  # expansion) — not merged to main, not in scrape.yml's scheduled matrix.
+  - slug: wegmans-us
+    name: Wegmans
+    base_url: https://www.wegmans.com
+    active: true
+    user_agents:
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    delay_seconds_min: 2
+    delay_seconds_max: 5
+    locale: en-US
+    timezone_id: America/New_York
+    currency: USD
+    country: US

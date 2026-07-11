@@ -43,9 +43,10 @@ def is_same_day(iso_timestamp: str, timezone_id: str = DEFAULT_TIMEZONE_ID) -> b
 
 
 class SupabaseWriter:
-    def __init__(self, client, timezone_id: str = DEFAULT_TIMEZONE_ID):
+    def __init__(self, client, timezone_id: str = DEFAULT_TIMEZONE_ID, currency: str = "EUR"):
         self.client = client
         self.timezone_id = timezone_id
+        self.currency = currency
 
     def get_store_id(self, slug: str) -> int:
         resp = self.client.table("stores").select("id").eq("slug", slug).limit(1).execute()
@@ -85,7 +86,7 @@ class SupabaseWriter:
             "is_promotion": scraped.is_promotion,
             "promotion_label": scraped.promotion_label,
             "in_stock": scraped.in_stock,
-            "currency": "EUR",
+            "currency": self.currency,
             "raw_payload": scraped.raw_payload,
         }
         self.client.table("price_snapshots").upsert(

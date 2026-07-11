@@ -1,10 +1,14 @@
 # United States Expansion Plan
 
-Research-only document, written 2026-07-11 in response to a direct request
-to study the US next (UK explicitly deferred). No code has been written —
-this mirrors the same live-verification-heavy research phase every other
-country got before any scraper was built, including the ones that ended up
-shelved (`docs/germany-expansion-plan.md`).
+Written 2026-07-11 in response to a direct request to study the US next
+(UK explicitly deferred). Started as a research-only document mirroring
+every other country's live-verification-heavy research phase, including
+the ones that ended up shelved (`docs/germany-expansion-plan.md`) — but
+the same day, per explicit instruction to keep building, `scraper/
+wegmans.py` was written and verified with a real 58-product basket (see
+§6). **Not merged to `main`** — built and pushed to the `research/us-
+expansion` branch only, deliberately kept separate until there's a
+decision to merge.
 
 **Bottom line up front (updated after a second research pass, same day)**:
 **Wegmans is a real, live-confirmed, unblocked lead** — not bot-blocked
@@ -233,25 +237,22 @@ already works.
    mapping (a one-time, bounded task, likely similar in spirit to how
    `seed/categories.py` already encodes the ECOICOP taxonomy by hand) is
    the real remaining weights work, not data access.
-2. **A proper DOM/pricing spike on Wegmans**, the same discipline every
-   other store in this project got before a scraper got written: confirm
-   the store-location selector flow end to end (does explicit ZIP/store
-   entry work reliably, or does it silently fall back to IP geolocation
-   that might behave oddly from a GitHub Actions runner's IP?), confirm
-   price-block selectors are stable across multiple real products, and
-   check for a promo/regular-price pattern the way every other store's
-   spike did. **Attempted, not resolved, in this same research session**:
-   a quick attempt to click through the store-location selector button
-   hit the wrong element (a hamburger-menu button with a similar
-   `aria-haspopup` attribute, not the location selector itself); a search
-   for a live promoted/sale item across a category page and the
-   `/shop/coupons` page found no sale-price markers, and the coupons page
-   itself turned out to be sign-in-gated (a normal UX gate, not a bot
-   block, but not useful for this project's anonymous-session scrapers
-   either way). Both need a dedicated pass, not a blocker — matches the
-   kind of thing every other store's real spike had to work through.
+2. **Done — `scraper/wegmans.py` built, tested, and verified with a real
+   58-product scrape (58/58, 100% coverage).** Full writeup in §6. Two
+   sub-items from the original spike remain genuinely open, not blockers:
+   the store-location selector flow (does explicit ZIP/store entry work
+   reliably, or does it silently fall back to IP geolocation that might
+   behave oddly from a GitHub Actions runner's IP — a quick attempt to
+   click through it hit the wrong element, a hamburger-menu button with a
+   similar `aria-haspopup` attribute) and live promo/regular-price
+   detection (no promoted product was found across 14 category pages or
+   the sign-in-gated `/shop/coupons` page, so `is_promotion` currently
+   defaults to "no promotion" — the same honest starting state Auchan
+   France's first build shipped with).
 3. **A live single-day, multi-city price comparison** on Wegmans — it's
-   regional (Northeast US: NY, PA, NJ, MA, VA, MD, NC, DC and others), so
+   regional (114 stores across NY [51], PA [19], VA [15], NJ, MD, MA, NC,
+   CT, DE, and DC — verified live 2026-07-11, storelocators.com/ScrapeHero/
+   World Population Review), so
    the open question isn't "national vs. regional" the way it was for
    Walmart/Target, but whether price varies *within* that footprint
    (e.g. NYC vs. a smaller upstate NY market) the way Auchan France's
@@ -270,16 +271,60 @@ already works.
 Wegmans is a real, live-confirmed, unblocked lead — the same shape of
 finding that Lidl was for both France and Germany, just for a smaller,
 Northeast-US-only regional chain rather than a national one. A US launch
-on Wegmans alone would start narrower than Portugal's three-store setup,
-the same "narrower slice" framing already applied to Auchan-only France —
+on Wegmans alone starts narrower than Portugal's three-store setup, the
+same "narrower slice" framing already applied to Auchan-only France —
 worth stating plainly, not implying broader US coverage than exists. With
-both the sourcing question (Wegmans) and the weights-access question (BLS's
-free public API) now resolved positively in this same research session,
-this reads closer to a "France" outcome (a real, reachable chain found,
-weights genuinely reachable, ready for a proper build spike) than a
-"Germany" one (exhausted, shelved). What's left before a full build is
-implementation-shaped, not open research: the Wegmans DOM/pricing spike
-(§4.2), the BLS item-to-COICOP mapping work (§3.1, §4.1), and the
-within-footprint price-variation check (§4.3) — the same sequence of steps
-every other store in this project went through, not a new category of
-unknown.
+the sourcing question (Wegmans, now built — §6), the weights-access
+question (BLS's free public API), and a real end-to-end scrape all
+resolved positively the same day, this landed closer to a "France" outcome
+(a real, reachable chain found and built) than a "Germany" one (exhausted,
+shelved) — still on a research branch, not merged, but no longer
+research-only.
+
+## 6. Build status — `scraper/wegmans.py`, 2026-07-11
+
+Built the same day as the research above, per explicit instruction to keep
+building rather than stop at research. Full curation writeup (all 58
+products, category breakdown, brand mix) is in `seed/README.md`'s
+"United States: Wegmans" section — not duplicated here. Summary:
+
+- **58 products across 14 categories** (rice, bread, pasta, beef, pork,
+  poultry, milk, yoghurt, cheese, eggs, olive oil, fresh fruit, vegetables,
+  personal care), ~4.1 products/category — deliberately deeper than every
+  prior new store's initial basket (Auchan France started at 11/11, Lidl
+  France at 12/12), per explicit instruction that a market this much
+  larger in population needs more products per category for the
+  within-class average to be representative and stable.
+- **Real UPCs for all 58** (pulled from each PDP's embedded JSON), better
+  barcode coverage than either Lidl France or Lidl Germany managed.
+- **Three real bugs found and fixed**, all with the potential to silently
+  corrupt data beyond just this one store — full detail in `seed/
+  README.md`:
+  1. `scraper/db.py` hardcoded `"currency": "EUR"` for every store,
+     unconditionally — never caught before because every store built so
+     far has been EUR-denominated. Fixed by adding `currency` to
+     `StoreConfig`/`config/stores.yaml`, same pattern as `timezone_id`.
+  2. `scraper/wegmans.py`'s price-element check used `.count()` right
+     after `domcontentloaded`, which doesn't wait for anything — Wegmans
+     hydrates its price block client-side, unlike every other site
+     scraped so far, so the real scraper failed 57/57 on the first run
+     even though the identical selector worked reliably during research
+     (which always paused before checking). Fixed with an explicit
+     `wait_for(state="attached")`.
+  3. Two products with the same `canonical_name`+`brand` (a 5.3oz and a
+     32oz Greek yogurt, both literally "0% Greek Plain Nonfat Yogurt")
+     collided under `seed/load_seed.py`'s upsert key, which is
+     `(canonical_name, brand)`, not `product_key` — silently merged into
+     one DB row, then left a stale orphaned row behind once fixed.
+     Self-diagnosed and cleaned up the same session.
+- **Verified live end to end**: `python -m scraper.run --store wegmans-us
+  --mode basket` → **58/58 listings, 100% coverage**, real USD prices
+  confirmed in `price_snapshots` with the correct `currency`/`country`
+  scoping.
+- **Not done**: not added to `.github/workflows/scrape.yml`'s matrix, not
+  merged to `main` — pushed to `research/us-expansion` only, per explicit
+  instruction to keep iterating there before any merge decision. No
+  `weights/bls.py` yet (§3.1/§4.1's mapping work is still open), so no
+  `inflation_metrics` rows exist for the US yet — this build covers
+  `price_snapshots` only, the same scope as every prior store's first
+  real scrape before its weights/metrics pipeline was wired up separately.

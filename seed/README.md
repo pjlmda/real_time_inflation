@@ -263,3 +263,89 @@ carried at the Marseille Drive location; a genuine regional-assortment gap,
 not a bug, and still well above the 0.85 low-confidence threshold).
 
 Basket now at 162 products / 205 listings total (up from 123/144).
+
+## United States: Wegmans — first US store, built deep given the market's population size
+
+`scraper/wegmans.py` built and verified live 2026-07-11, following the
+research in `docs/us-expansion-plan.md` (17 US chains checked; Wegmans was
+the one genuinely open door). Per explicit instruction, the basket was
+curated deeper than the initial-pilot pattern used for every prior new
+store (Auchan France started at 11 products/11 categories, Lidl France at
+12/12) — Wegmans launched directly at **58 products across 14 categories**
+(~4.1 products/category), on the reasoning that a market this much larger
+in population needs more products per class for the within-class Jevons
+average to be representative and stable, not just a single price series
+per category.
+
+**Categories and product counts**: rice (4), bread (4), pasta (4), beef
+(4), pork (4), poultry (4), milk (4), yoghurt (4), cheese (4), eggs (4),
+olive oil (4), fresh fruit (5 — apples + bananas), vegetables (5 — carrots
++ tomatoes), personal care (4). Mix of Wegmans' own store brand (roughly
+70% of the basket) and recognizable national brands (Ben's Original,
+Martin's, Fage, Cabot Creamery, Eggland's Best, Dove, Pantene, Head &
+Shoulders, L'Oréal, Villari) for realistic brand-tier diversity, the same
+discount-tier-plus-mainstream-tier mix already used for the France
+robustness round.
+
+**Two real bugs found and fixed while building this, both would have
+silently corrupted data for every future store, not just Wegmans**:
+- `scraper/db.py` hardcoded `"currency": "EUR"` on every `price_snapshots`
+  row, for every store, unconditionally — never previously caught because
+  every store built so far has been EUR-denominated. Fixed by adding
+  `currency` to `StoreConfig`/`config/stores.yaml` (same pattern as the
+  existing per-store `timezone_id`), threaded through `SupabaseWriter`.
+  Every existing store's config entry omits the key and defaults to
+  `'EUR'`, so this is additive — no existing data or behavior changes.
+- `scraper/wegmans.py`'s first version checked for the price element via
+  `await price_locator.count() == 0` immediately after
+  `page.goto(..., wait_until="domcontentloaded")`, the same pattern used
+  successfully by every other scraper in this project — but failed 57/57
+  listings on the first real run (`no price element found`). Unlike every
+  site scraped so far, Wegmans' price block is hydrated client-side after
+  the initial DOM load (confirmed: the exact same selector worked reliably
+  during research, which always paused a few seconds before checking).
+  `.count()` doesn't wait for anything — it just checks what's in the DOM
+  *right now*. Fixed by replacing the count check with
+  `await price_locator.wait_for(state="attached", timeout=10_000)`.
+
+**A third, smaller bug was caught before it reached real damage**: two
+Wegmans products (a 5.3oz and a 32oz Greek yogurt) were both named
+"0% Greek Plain Nonfat Yogurt" — identical `canonical_name`+`brand`.
+`seed/load_seed.py` upserts the `products` table on `(canonical_name,
+brand)`, not `product_key` — the second product's seed silently overwrote
+the first's row in place rather than creating two rows, and a follow-up
+fix (adding the size to each name to disambiguate) then created two *new*
+rows without cleaning up the now-orphaned original, briefly leaving a
+stale, unreferenced product+listing pair in the database (self-diagnosed
+and deleted the same session — `products.id=1054`,
+`product_listings.id=1255`). The real, general lesson: any product that
+comes in multiple sizes needs the size baked into `canonical_name` itself
+to stay unique under this upsert key — already done correctly elsewhere in
+this project (e.g. Auchan France's "Yaourt nature 16x125g" vs "4x125g")
+but missed for this one Wegmans pair.
+
+**Not yet confirmed live**: promo/regular-price detection
+(`is_promotion`/`regular_price` default to "no promotion" — no live
+promoted product was found across 14 category listing pages or the site's
+Digital Coupons page, which turned out to be sign-in-gated). Also not yet
+resolved: whether Wegmans' default store location ("Medford", shown
+without any explicit interaction) is a fixed site-wide default or
+IP-geolocation-based — consistent across three research sessions with
+different `timezone_id` contexts, but not tested against a real GitHub
+Actions runner IP.
+
+`python -m scraper.run --store wegmans-us --mode basket` ran for real:
+**58/58 listings, 100% coverage.** Not yet in `.github/workflows/scrape.yml`'s
+matrix and not merged to `main` — built and pushed to the `research/us-
+expansion` branch only, per explicit instruction to keep iterating there
+before merging.
+
+Real UPCs were pulled from each PDP's embedded JSON (`\"upc\":[\"<code>\"]`,
+backslash-escaped since it's JSON-stringified inside a script tag) —
+better barcode coverage than either Lidl France or Lidl Germany managed
+(`match_method='ean'` for all 58, vs. `'manual'`/`ean='TODO'` for Lidl).
+Produce items (fruit/veg) carry a zero-padded PLU-style code in the same
+field rather than a true 12-digit UPC-A, since that's what Wegmans itself
+uses for weight-sold produce — stored as-is.
+
+Basket now at 220 products / 263 listings total (up from 162/205).

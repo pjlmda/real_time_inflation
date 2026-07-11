@@ -18,6 +18,7 @@ def _make_config():
         delay_seconds_max=2,
         locale="pt-PT",
         timezone_id="Europe/Lisbon",
+        currency="EUR",
     )
 
 

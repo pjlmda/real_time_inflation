@@ -161,3 +161,61 @@ tomme_brebis_lidl_fr,Tomme de brebis,Chêne d'Argent,true,01.1.4.5,320,g,TODO
 huile_olive_crete_lidl_fr,Huile d'olive vierge extra AOP de Crète,Eridanous,true,01.1.5.3,750,ml,TODO
 vin_pays_doc_lidl_fr,Pays d'Oc Cabernet Sauvignon IGP,,true,02.1.2.1,3,L,TODO
 dentifrice_lidl_fr,Dentifrice 2x125ml,Aquafresh,false,12.1.3.2,250,ml,TODO
+steamables_jasmine_wegmans_us,Steamables Jasmine Rice,Wegmans,true,01.1.1.1,249,g,00077890589144
+whole_grain_5_blend_wegmans_us,Whole Grain 5 Rice Blend,Wegmans,true,01.1.1.1,227,g,00077890239650
+jasmine_5lb_wegmans_us,Jasmine Rice,Wegmans,true,01.1.1.1,2.268,kg,00077890466582
+bens_ready_jasmine_wegmans_us,"Ready Rice, Jasmine",Ben's Original,false,01.1.1.1,241,g,00054800423392
+soft_whole_wheat_wegmans_us,Soft 100% Whole Wheat Bread,Wegmans,true,01.1.1.3,567,g,00077890617700
+martins_potato_wegmans_us,"Potato Bread, Sandwich",Martin's,false,01.1.1.3,510,g,00075185007007
+white_sourdough_wegmans_us,Organic White Sourdough Sandwich Bread,Wegmans,true,01.1.1.3,595,g,00077890549513
+27grains_seeds_wegmans_us,Organic 27 Grains and Seeds Sandwich Bread,Wegmans,true,01.1.1.3,680,g,00077890549452
+spaghetti_wegmans_us,Spaghetti Pasta,Wegmans,true,01.1.1.6,454,g,00077890601648
+rotini_wegmans_us,Rotini Pasta,Wegmans,true,01.1.1.6,454,g,00077890489857
+protein_elbow_wegmans_us,Protein Elbow Pasta,Wegmans,true,01.1.1.6,411,g,00077890608340
+amore_riccioli_wegmans_us,Amore Riccioli Pasta,Wegmans,true,01.1.1.6,499,g,00077890504710
+ground_8020_wegmans_us,Ground Beef 80/20,Wegmans,true,01.1.2.1,454,g,02002551000001
+ground_9010_wegmans_us,Ground Beef 90/10,Wegmans,true,01.1.2.1,454,g,02002553000009
+ground_955_wegmans_us,Ground Beef 95/5,Wegmans,true,01.1.2.1,454,g,02002544000001
+grassfed_ground_937_wegmans_us,"Organic Grass Fed Ground Beef, 93% Lean/7% Fat",Wegmans,true,01.1.2.1,454,g,00647086001455
+boneless_centercut_chops_wegmans_us,Boneless Center-Cut Pork Chops,Wegmans,true,01.1.2.2,445,g,02002702000003
+bonein_centercut_chops_wegmans_us,Bone-In Center Cut Pork Chops,Wegmans,true,01.1.2.2,712,g,02002704000001
+villari_boneless_chop_wegmans_us,Boneless Pork Chop,Villari,false,01.1.2.2,454,g,00884580223772
+organic_boneless_chop_wegmans_us,Organic Boneless Pork Chop,Wegmans,true,01.1.2.2,381,g,02003342000002
+chicken_breast_ribmeat_familypack_wegmans_us,"Boneless, Skinless Chicken Breasts with Rib Meat, FAMILY PACK",Wegmans,true,01.1.2.4,2.177,kg,02002867000009
+chicken_breast_boneless_wegmans_us,"Boneless Skinless Chicken Breast, Raised without Antibiotics",Wegmans,true,01.1.2.4,730,g,02002494000007
+chicken_breast_rosemary_cutlets_wegmans_us,"Rosemary Balsamic Chicken Breast Cutlets, Raised without Antibiotics",Wegmans,true,01.1.2.4,440,g,02000211000002
+chicken_breast_organic_wegmans_us,Organic Boneless Skinless Chicken Breasts,Wegmans,true,01.1.2.4,635,g,02000702000009
+vitd_whole_1gal_wegmans_us,Vitamin D Whole Milk,Wegmans,true,01.1.4.1,3.785,L,00077890944271
+2pct_05gal_wegmans_us,2% Reduced Fat Milk,Wegmans,true,01.1.4.1,1.893,L,00077890939895
+vitd_1qt_wegmans_us,Vitamin D Milk,Wegmans,true,01.1.4.1,946,ml,00077890944295
+1pct_1gal_wegmans_us,1% Low Fat Milk,Wegmans,true,01.1.4.1,3.785,L,00077890019122
+greek_plain_53oz_wegmans_us,"0% Greek Plain Nonfat Yogurt, 5.3 oz",Wegmans,true,01.1.4.4,150,g,00077890255865
+greek_plain_32oz_wegmans_us,"0% Greek Plain Nonfat Yogurt, 32 oz",Wegmans,true,01.1.4.4,907,g,00077890256053
+fage_53oz_wegmans_us,"Total Yogurt, Nonfat, Greek, Strained",Fage,false,01.1.4.4,150,g,00689544080008
+fage_2pct_32oz_wegmans_us,"Total 2%, Plain Greek Yogurt",Fage,false,01.1.4.4,907,g,00689544083023
+cheddar_extra_sharp_white_wegmans_us,"Cheese, Cheddar, Extra Sharp, White",Wegmans,true,01.1.4.5,227,g,00077890835647
+sharp_cheddar_wegmans_us,Sharp Cheddar Cheese,Wegmans,true,01.1.4.5,227,g,00077890835883
+cabot_seriously_sharp_wegmans_us,Vermont Seriously Sharp Cheddar Cheese,Cabot Creamery,false,01.1.4.5,227,g,00078354708439
+aged_cheddar_mild_12mo_wegmans_us,12 Month Aged Cheddar Cheese- Mild,Wegmans,true,01.1.4.5,227,g,02035408000008
+cagefree_large_12ct_wegmans_us,Cage Free Large Eggs,Wegmans,true,01.1.4.7,12,un,00077890526033
+cagefree_large_18ct_wegmans_us,"Cage Free Large Eggs, 18 count",Wegmans,true,01.1.4.7,18,un,00077890526064
+organic_brown_12ct_wegmans_us,"Organic Large Brown Eggs, 12 Count, Cage Free",Wegmans,true,01.1.4.7,12,un,00077890185155
+egglands_best_12ct_wegmans_us,"Free Range Organic Large Brown Eggs, 12 count",Eggland's Best,false,01.1.4.7,12,un,00715141514964
+olive_oil_squeeze_wegmans_us,"Olive Oil, Squeeze Bottle",Wegmans,true,01.1.5.3,500,ml,00077890607350
+evoo_squeeze_wegmans_us,"Extra Virgin Olive Oil, Squeeze Bottle",Wegmans,true,01.1.5.3,500,ml,00077890607343
+classic_olive_oil_33oz_wegmans_us,Classic Olive Oil,Wegmans,true,01.1.5.3,1000,ml,00077890383780
+italian_classics_evoo_wegmans_us,Italian Classics Italian Extra Virgin Olive Oil,Wegmans,true,01.1.5.3,500,ml,00077890383476
+bananas_each_wegmans_us,"Bananas, Sold by the Each",,false,01.1.6.1,172,g,00000000040112
+gala_apple_wegmans_us,Gala Apple,,false,01.1.6.1,227,g,00000000041324
+honeycrisp_apple_wegmans_us,Honeycrisp Apple,,false,01.1.6.1,340,g,00847473001116
+granny_smith_apple_wegmans_us,Granny Smith Apple,,false,01.1.6.1,227,g,00000000040174
+organic_bananas_bunch_wegmans_us,"Organic Bananas, Bunch",,false,01.1.6.1,907,g,00000000940115
+baby_cut_carrots_wegmans_us,Baby Cut Carrots,Wegmans,true,01.1.7.1,454,g,00033383666020
+organic_carrots_wegmans_us,Organic Carrots,Wegmans,true,01.1.7.1,318,g,00000000945622
+beefsteak_tomatoes_wegmans_us,Beefsteak Tomatoes,,false,01.1.7.1,295,g,00000000048088
+tomatoes_on_vine_cluster_wegmans_us,"Tomatoes On-The-Vine, Cluster",,false,01.1.7.1,658,g,00689259046641
+organic_roma_tomatoes_wegmans_us,Organic Roma Tomatoes,Wegmans,true,01.1.7.1,454,g,00618024940877
+head_shoulders_classic_clean_wegmans_us,"Dandruff Shampoo, Classic Clean",Head & Shoulders,false,12.1.3.2,370,ml,00030772062791
+dove_intensive_repair_wegmans_us,Shampoo Intensive Repair,Dove,false,12.1.3.2,828,ml,00079400514073
+pantene_daily_moisture_wegmans_us,Daily Moisture Renewal 72 HR Lush Moisture Shampoo,Pantene,false,12.1.3.2,355,ml,00080878195565
+loreal_elvive_hyaluron_wegmans_us,Elvive Hyaluron plus Pure 72H Purifying Shampoo for Oily Hair,L'Oreal Paris,false,12.1.3.2,373,ml,00071249680650

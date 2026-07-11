@@ -25,6 +25,7 @@ from scraper.lidl_france import LidlFranceScraper
 from scraper.pingodoce import PingoDoceScraper
 from scraper.pingodoce_category import PingoDoceCategoryCrawler
 from scraper.store_config import load_store_config
+from scraper.wegmans import WegmansScraper
 
 SCRAPERS = {
     "continente": ContinenteScraper,
@@ -33,6 +34,7 @@ SCRAPERS = {
     "auchan-fr-paris": AuchanFranceScraper,
     "auchan-fr-marseille": AuchanFranceScraper,
     "lidl-fr": LidlFranceScraper,
+    "wegmans-us": WegmansScraper,
     # lidl (Portugal): added once the widened pilot is verified (spec §11).
 }
 
@@ -56,7 +58,7 @@ async def _main(store_slug: str, mode: str, dry_run: bool) -> int:
     supabase_client = create_client(
         os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"]
     )
-    db = SupabaseWriter(supabase_client, timezone_id=config.timezone_id)
+    db = SupabaseWriter(supabase_client, timezone_id=config.timezone_id, currency=config.currency)
 
     if dry_run:
         if mode == "basket":

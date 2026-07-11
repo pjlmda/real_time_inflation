@@ -330,8 +330,8 @@ promoted product was found across 14 category listing pages or the site's
 Digital Coupons page, which turned out to be sign-in-gated).
 
 `python -m scraper.run --store wegmans-us --mode basket` ran for real:
-**58/58 listings, 100% coverage.** (Since merged to `main` — see below;
-still not in `.github/workflows/scrape.yml`'s scheduled matrix.)
+**58/58 listings, 100% coverage.** (Since merged to `main` and added to
+`.github/workflows/scrape.yml`'s scheduled matrix — see below.)
 
 Real UPCs were pulled from each PDP's embedded JSON (`\"upc\":[\"<code>\"]`,
 backslash-escaped since it's JSON-stringified inside a script tag) —

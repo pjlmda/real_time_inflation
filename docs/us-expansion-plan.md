@@ -6,11 +6,12 @@ every other country's live-verification-heavy research phase, including
 the ones that ended up shelved (`docs/germany-expansion-plan.md`) — but
 the same day, per explicit instruction to keep building, `scraper/
 wegmans.py` was written and verified with a real 58-product basket across
-three locations (see §6, §8), and `weights/bls.py` was built (§7). **Merged
-to `main` 2026-07-11** (fast-forward from the `research/us-expansion`
-branch, which incubated all of this work). Not yet in `scrape.yml`'s
-scheduled matrix — manual-run only for now. `category_weights` still has
-no US rows (the BLS API's daily quota was exhausted by this session's
+four locations (see §6, §8, §9), and `weights/bls.py` was built (§7).
+**Merged to `main` 2026-07-11** (fast-forward from the `research/us-
+expansion` branch, which incubated all of this work) **and added to
+`scrape.yml`'s scheduled matrix the same day** — all four locations now
+scrape twice daily alongside every other store. `category_weights` still
+has no US rows (the BLS API's daily quota was exhausted by this session's
 research before a full sync could run — needs a re-run once it resets),
 so no `inflation_metrics` exist for the US yet; this covers `price_snapshots`
 only so far.
@@ -470,3 +471,19 @@ Price basis clarified as a side effect of having the raw API response:
 `price_inStore`, not `price_delivery` — the latter runs consistently
 ~15-17% higher at every store checked, a real, new (US-specific) pricing
 dimension no prior country in this project has had to account for.
+
+## 9. Build status — scheduled matrix, 2026-07-11
+
+Per explicit instruction, once all four locations had a real, passing
+scrape run: all four (`wegmans-us-medford`, `wegmans-us-nyc`,
+`wegmans-us-fairfax`, `wegmans-us-chapelhill`) added to
+`.github/workflows/scrape.yml`'s matrix, `category: false` (matching
+France's stores — no dynamic category-crawl scraper exists for Wegmans
+either, only the fixed-basket one). They now scrape on the same twice-
+daily cron as every other store (`0 6 * * *` / `0 10 * * *` UTC), with the
+same idempotent same-day-retry behavior.
+
+Not yet done: `category_weights` has no US rows (BLS quota pending reset —
+see §7), so `compute.yml`'s `metrics/compute.py` run will produce
+`price_snapshots` rows for the US on every scheduled scrape but no
+`inflation_metrics` rows until the weights sync succeeds at least once.

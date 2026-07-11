@@ -36,9 +36,9 @@ jobs:
       matrix:
         # `category` marks whether this store has a dynamic category-crawl
         # scraper registered in scraper/run.py's CATEGORY_CRAWLERS — France's
-        # stores don't yet (only their fixed-basket scrapers exist), so their
-        # category step is skipped rather than failing the job with "No
-        # category scraper implemented for store ...".
+        # and Wegmans' stores don't yet (only their fixed-basket scrapers
+        # exist), so their category step is skipped rather than failing the
+        # job with "No category scraper implemented for store ...".
         include:
           - store: continente
             category: true
@@ -51,6 +51,14 @@ jobs:
           - store: auchan-fr-marseille
             category: false
           - store: lidl-fr
+            category: false
+          - store: wegmans-us-medford
+            category: false
+          - store: wegmans-us-nyc
+            category: false
+          - store: wegmans-us-fairfax
+            category: false
+          - store: wegmans-us-chapelhill
             category: false
     steps:
       - uses: actions/checkout@v4

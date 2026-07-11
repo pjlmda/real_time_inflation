@@ -1,0 +1,56 @@
+{
+  "status": "REQUEST_SUCCEEDED",
+  "responseTime": 120,
+  "message": [],
+  "Results": {
+    "series": [
+      {
+        "seriesID": "CUUR0000SEFB01",
+        "data": [
+          {
+            "year": "2026",
+            "period": "M05",
+            "periodName": "May",
+            "latest": "true",
+            "value": "248.403",
+            "aspects": [
+              {"name": "Relative Importance", "value": "0.173", "footnotes": [{}]},
+              {"name": "Relative Importance for previous year", "value": "0.171", "footnotes": [{}]}
+            ],
+            "footnotes": [{}]
+          },
+          {
+            "year": "2026",
+            "period": "M04",
+            "periodName": "April",
+            "value": "247.900",
+            "aspects": [
+              {"name": "Relative Importance", "value": "0.170", "footnotes": [{}]}
+            ],
+            "footnotes": [{}]
+          }
+        ]
+      },
+      {
+        "seriesID": "CUUR0000SEFA03",
+        "data": [
+          {
+            "year": "2026",
+            "period": "M05",
+            "periodName": "May",
+            "latest": "true",
+            "value": "291.250",
+            "aspects": [
+              {"name": "Relative Importance", "value": "0.140", "footnotes": [{}]}
+            ],
+            "footnotes": [{}]
+          }
+        ]
+      },
+      {
+        "seriesID": "CUUR0000SEFZZ",
+        "data": []
+      }
+    ]
+  }
+}

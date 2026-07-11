@@ -323,8 +323,56 @@ products, category breakdown, brand mix) is in `seed/README.md`'s
   scoping.
 - **Not done**: not added to `.github/workflows/scrape.yml`'s matrix, not
   merged to `main` — pushed to `research/us-expansion` only, per explicit
-  instruction to keep iterating there before any merge decision. No
-  `weights/bls.py` yet (§3.1/§4.1's mapping work is still open), so no
-  `inflation_metrics` rows exist for the US yet — this build covers
-  `price_snapshots` only, the same scope as every prior store's first
-  real scrape before its weights/metrics pipeline was wired up separately.
+  instruction to keep iterating there before any merge decision.
+
+## 7. Build status — `weights/bls.py`, 2026-07-11
+
+Built the same day, immediately after the scraper (§6), closing the
+§3.1/§4.1 weights-mapping gap. Full module docstring in `weights/bls.py`
+has the complete provenance/verification notes per BLS item code; summary:
+
+- **13 of 15 mapped BLS item codes were individually live-verified**
+  against `api.bls.gov` during development — real current data, plausible
+  relative-importance magnitude, correct parent/child nesting (e.g. Dairy's
+  RI ≥ Milk's + Cheese's, Fresh fruits' RI ≥ Apples' + Bananas'). The
+  remaining two (`SEFW` for wine, `SEGB` for personal care) are sourced
+  from search-engine summaries cross-referenced against FRED series
+  titles, not independently live-verified — the API's daily
+  unauthenticated-request quota was hit mid-session from the volume of
+  research this same day. Flagged in the module itself, not silently
+  assumed correct.
+- **Two disclosed granularity/coverage gaps**, the same "real gap, not
+  worked around" pattern already used elsewhere in this project: BLS
+  doesn't split rice from pasta (both map to its single `SEFA03` item,
+  "Rice, pasta, cornmeal") or break out olive oil/wine from the broader
+  "Fats and oils"/"Alcoholic beverages at home" items — used as the
+  closest available substitute rather than fabricating a finer series that
+  doesn't exist at this publication level. No BLS item was found for
+  yoghurt specifically (folded into the broader Dairy aggregate at the
+  level BLS publishes) — left genuinely unmapped; `01.1.4.4` won't get a
+  US weight until this is resolved.
+- **A real, general robustness bug found and fixed while testing this
+  against the live (rate-limited) API**: `parse_response()` alone silently
+  treated a declined/rate-limited API response the same as "no data for
+  any of these series" — `python -m weights.bls` reported "Synced 0 weight
+  records" with no indication anything had actually failed. Fixed by
+  checking the response's own `status` field in `fetch_weights()` and
+  raising `BlsRequestFailed` explicitly when the request wasn't processed,
+  rather than letting a quiet zero-record "success" mask a real failure.
+- **A second real bug found and fixed, shared code**: `weights/eurostat.py
+  :upsert_weights()` hardcoded its own module's `SOURCE_DATASET` constant
+  (`'prc_hicp_inw'`) directly rather than accepting it as a parameter —
+  reusing that function as-is from `weights/bls.py` (a deliberate reuse,
+  not a duplication, since the function was already fully country-agnostic
+  otherwise) would have mislabeled every BLS-sourced `hicp_weights_cache`
+  audit row as Eurostat-sourced. Fixed by adding a `source_dataset`
+  parameter, defaulting to the existing Eurostat value so every existing
+  caller's behavior is unchanged.
+- **Tested via fixtures** (`tests/test_bls.py`, 5 tests; mirrors
+  `tests/test_eurostat.py`'s established pattern), not yet via a full
+  successful live `python -m weights.bls` run — the API's daily quota was
+  already exhausted by the time this module was ready to run for real, so
+  `category_weights` has **no US rows yet**. Needs a re-run once the quota
+  resets (BLS's daily limits reset on a rolling/calendar-day basis) before
+  US `inflation_metrics` can be computed at all — this is the concrete,
+  well-scoped next step, not an open unknown.

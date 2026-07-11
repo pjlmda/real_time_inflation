@@ -86,11 +86,19 @@ def to_dotted_ecoicop(eurostat_code: str) -> str:
     return ".".join([digits[:2], *digits[2:]])
 
 
-def upsert_weights(records: list[WeightRecord], supabase_client, country: str) -> None:
+def upsert_weights(
+    records: list[WeightRecord], supabase_client, country: str, source_dataset: str = SOURCE_DATASET
+) -> None:
     """Append every fetched record to `hicp_weights_cache` (audit log, safe
     to re-run), then upsert `category_weights` (migration 0007 — weights are
     country-specific, unlike `categories` itself which stays the shared,
-    country-agnostic COICOP taxonomy) for the ECOICOP codes already seeded."""
+    country-agnostic COICOP taxonomy) for the ECOICOP codes already seeded.
+
+    `source_dataset` defaults to this module's own Eurostat dataset name —
+    reused as-is by every Eurostat-sourced country's caller. A non-Eurostat
+    fetcher (e.g. `weights/bls.py`) must pass its own value explicitly, or
+    every row it writes would misleadingly claim `source_dataset='prc_hicp_inw'`
+    in the audit cache regardless of where the weight actually came from."""
     if not records:
         return
 
@@ -99,7 +107,7 @@ def upsert_weights(records: list[WeightRecord], supabase_client, country: str) -
             "ecoicop2_code": r.ecoicop2_code,
             "weight_year": r.weight_year,
             "weight": r.weight,
-            "source_dataset": SOURCE_DATASET,
+            "source_dataset": source_dataset,
             "country": country,
         }
         for r in records

@@ -5,10 +5,15 @@ Written 2026-07-11 in response to a direct request to study the US next
 every other country's live-verification-heavy research phase, including
 the ones that ended up shelved (`docs/germany-expansion-plan.md`) — but
 the same day, per explicit instruction to keep building, `scraper/
-wegmans.py` was written and verified with a real 58-product basket (see
-§6). **Not merged to `main`** — built and pushed to the `research/us-
-expansion` branch only, deliberately kept separate until there's a
-decision to merge.
+wegmans.py` was written and verified with a real 58-product basket across
+three locations (see §6, §8), and `weights/bls.py` was built (§7). **Merged
+to `main` 2026-07-11** (fast-forward from the `research/us-expansion`
+branch, which incubated all of this work). Not yet in `scrape.yml`'s
+scheduled matrix — manual-run only for now. `category_weights` still has
+no US rows (the BLS API's daily quota was exhausted by this session's
+research before a full sync could run — needs a re-run once it resets),
+so no `inflation_metrics` exist for the US yet; this covers `price_snapshots`
+only so far.
 
 **Bottom line up front (updated after a second research pass, same day)**:
 **Wegmans is a real, live-confirmed, unblocked lead** — not bot-blocked
@@ -278,8 +283,7 @@ the sourcing question (Wegmans, now built — §6), the weights-access
 question (BLS's free public API), and a real end-to-end scrape all
 resolved positively the same day, this landed closer to a "France" outcome
 (a real, reachable chain found and built) than a "Germany" one (exhausted,
-shelved) — still on a research branch, not merged, but no longer
-research-only.
+shelved) — merged to `main`, no longer research-only.
 
 ## 6. Build status — `scraper/wegmans.py`, 2026-07-11
 
@@ -321,9 +325,10 @@ products, category breakdown, brand mix) is in `seed/README.md`'s
   --mode basket` → **58/58 listings, 100% coverage**, real USD prices
   confirmed in `price_snapshots` with the correct `currency`/`country`
   scoping.
-- **Not done**: not added to `.github/workflows/scrape.yml`'s matrix, not
-  merged to `main` — pushed to `research/us-expansion` only, per explicit
-  instruction to keep iterating there before any merge decision.
+- **Not done at the time**: not yet merged to `main`, not added to
+  `.github/workflows/scrape.yml`'s matrix. (Update: merged to `main` after
+  §8's multi-location rebuild — see the top of this document. Still not in
+  `scrape.yml`'s scheduled matrix.)
 
 ## 7. Build status — `weights/bls.py`, 2026-07-11
 

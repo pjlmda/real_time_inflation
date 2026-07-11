@@ -1,16 +1,20 @@
 # Germany Expansion Plan
 
-Planning document, not an implementation plan — no code has been written for
-this yet. Written 2026-07-11, in response to a direct request to look at
-Germany next, per the country-priority order in `CLAUDE.md` (Germany → UK →
-US after France) and the fact that France's remaining big chains
-(Leclerc/Carrefour/Intermarché/Système U) are blocked by enterprise bot
-mitigation with no further direct-scraping path forward for now.
+**Status (2026-07-11): shelved.** Twelve German chains were checked live;
+none is currently viable. Lidl Germany looked like the strongest lead (not
+bot-blocked, same commerce platform as Lidl France) and a full scraper was
+even built and pilot-tested against it, but was abandoned after confirming
+its online catalog doesn't sell real groceries at all (see §1b). No other
+chain checked cleared the bar either — see §1c for the full list. Do not
+restart Germany work from scratch; read §1b/§1c first so this research isn't
+repeated. Revisit only if a specific chain's situation has changed (new
+online shop launch, a chain not yet checked, or a legitimate third-party
+data-provider relationship per `CLAUDE.md`'s anti-bot sourcing policy).
 
 Research below is grounded in live checks against the real sites (robots.txt
-fetches, response headers, a live search-results check) done today, matching
-the same "verified live, store by store" discipline used for every prior
-store and for France.
+fetches, response headers, live search/navigation/DOM checks) done on
+2026-07-11, matching the same "verified live, store by store" discipline used
+for every prior store and for France.
 
 ---
 
@@ -48,27 +52,77 @@ coincidence specific to France; it looks like a real pattern where Tier-1
 grocery chains broadly run enterprise bot mitigation and Lidl, across at
 least two markets checked so far, doesn't.
 
-### Lidl Germany specifically — confirmed to sell real groceries online, not just weekly flyers
+### Lidl Germany — platform match confirmed, but the online catalog is not groceries (§1b)
 
-A live search against `lidl.de` for "milch" (milk) returned a 200 with real
-EUR-priced results (51+ price mentions, hundreds of "milch" mentions in the
-response) — this is a genuine online grocery catalog with real prices, not
-just a digital circular. Confirmed via `lidl.de/q/search?q=milch`.
+The platform-match hypothesis below was correct: `lidl.de` runs the identical
+Nuxt commerce platform as `lidl.fr` (same `data-gridbox-impression` JSON
+tile structure, same PDP URL pattern `/p/<slug>/p<id>`, same numeric food
+category ID `s10068374` at both `lidl.fr/c/manger-boire/` and
+`lidl.de/c/essen-trinken/`, same two real bugs reproduced identically: the
+`RobotsChecker` SSL/myracloud-CDN issue and the `friendlyCaptchaSitekey`
+false-positive block). `scraper/lidl_france.py`'s bug fixes both carry over
+directly if Lidl Germany is ever revisited.
 
-**`lidl.de/robots.txt` is nearly identical to `lidl.fr/robots.txt`** — same
-disallow list shape (`*search?q=*`, `*sort=*`, `*id=*`, etc.), same
-`Sitemap: https://www.lidl.de/static/sitemap.xml` pattern. This strongly
-suggests Lidl runs the same underlying commerce platform across at least
-these two markets (consistent with Schwarz Group's centralized IT — Lidl
-operates in 30+ countries off a shared platform in practice). **Practical
-implication**: whatever scraper gets built for Lidl France (still Phase 2,
-not started per `docs/france-expansion-plan.md`) is a strong candidate to
-transfer to Lidl Germany with comparatively small changes — same discovery
-pattern (sitemap-based, since direct search-result crawling is disallowed by
-robots.txt at both), likely similar or identical DOM structure. Not
-confirmed yet — this needs the same live-selector verification every other
-store got, not an assumption — but it changes the sequencing calculus: doing
-Lidl France's scraper first has a second payoff beyond France alone.
+**But the earlier "milch returns real EUR-priced results" finding above was a
+false signal.** That check was a raw `curl`/regex substring count against
+unrendered HTML — it picked up incidental mentions of "Milch" in allergen
+disclosures and unrelated product descriptions (e.g. "enthält Milch"), not
+actual milk cartons for sale. A rigorous re-check with real Playwright
+sessions, structured `data-gridbox-impression` JSON parsing (the same method
+that successfully curated all 12 Lidl France products), told a completely
+different story:
+
+- **30 grocery-staple search terms, two rounds** (`milch`, `brot`, `nudeln`,
+  `reis`, `kaese`, `eier`, `huehnerbrust`, `rindfleisch`, `schweinefleisch`,
+  `joghurt`, `olivenoel`, `apfel`, `karotten`, `duschgel`, `lachs`,
+  `thunfisch`, then more precise phrasing: `vollmilch`, `toastbrot`,
+  `spaghetti nudeln`, `basmati reis`, `gouda scheiben`, `eier
+  freilandhaltung`, `haehnchenbrust filet`, `rinderhack`, `schweinefilet`,
+  `naturjoghurt`, `olivenoel nativ`, `aepfel`, `duschbad`) — every one
+  returned zero or near-zero real grocery products. Results were
+  overwhelmingly kitchen appliances (Milchaufschäumer, Eierkocher,
+  Reiskocher), camping/fishing gear, and clothing.
+- **9 more searches for shelf-stable pantry categories** (`kaffee`,
+  `schokolade`, `bier`, `konserven`, `chips`, `tee`, `cola`, `nudelsauce`,
+  `honig`) — same result: coffee machines, chocolate-flavored liqueur,
+  cookware, a T-shirt brand called "Tee", a Coca-Cola-branded popcorn
+  maker. Only `bier` returned real product (beer kegs) and only because
+  it's alcohol, not because the category itself worked.
+- **`wein rot`** (red wine) was the *only* search term across both rounds
+  (39 terms total) that reliably returned real, relevant grocery products
+  in both passes.
+- **Direct navigation to Lidl's own confirmed nav destinations** settled
+  it: the `essen-trinken` top-nav link no longer even resolves to a
+  category page (it now serves an "Aktionsprospekt" flyer redirect, 0
+  product boxes). The real food-adjacent hub pages from Lidl's own header
+  nav — `/h/obst-gemuese/` (fruit & veg), `/h/suesswaren-snacks/`
+  (confectionery & snacks), `/h/getraenke/` (beverages) — return almost
+  nothing: one seasonal chestnut snack at €19.99, one liqueur mislabeled as
+  confectionery, and only alcoholic drinks (sangria, cider, spritz) under
+  "beverages" — no water, juice, or soda.
+
+**Conclusion**: `lidl.de`'s online shop is a rotating "Aktionsware" (weekly
+non-food specials: tools, appliances, clothing, toys) plus a wine/spirits/
+beer shop. It does not sell day-to-day groceries online at all — those are
+physical-store-only in Germany. This is a real difference from Lidl France,
+whose online shop does carry a genuine food catalog (confirmed, 12 real
+products curated — see `docs/france-expansion-plan.md`). **Lidl Germany is
+not a viable data source for a supermarket-HICP-comparable index** — a
+wine/beer/spirits-only basket would cover just COICOP 02.1.x, none of the
+food divisions (01.x) the project is meant to track, and would be
+misleading to present as "Germany's grocery inflation."
+
+### Other German chains checked (§1c) — none viable
+
+| Chain | Result |
+|---|---|
+| Edeka, REWE, Kaufland, Aldi Süd, Netto (Edeka's) | 403, Akamai/Cloudflare — bot-blocked |
+| Netto-online.de | 403 — bot-blocked |
+| Aldi Nord | 200 OK, but zero e-commerce anywhere on the site — no `€` sign on its "Sortiment" (assortment) or "Angebote" (offers) pages, no cart, no PDPs. Pure marketing/circular site. |
+| Norma | 200 OK, but its offers page is an image/flyer-style circular — no structured text prices found. |
+| Globus | Redirects to a store-locator page (`/maerkte.php`), not a shop. |
+| tegut | Its "Online Shop" nav link (`/onlineshop.html`) goes straight to an Amazon.de-partnership page ("Der tegut... Amazon Online Shop") — no independent catalog. |
+| Penny | The one partial positive: `/angebote/` (weekly offers) has real structured prices via the same `data-gridbox`-style tile JSON pattern (avocado €0.66, ground beef €7.49, peaches €1.49, real COICOP-mappable categories). **But** the product tiles carry `data-prevent-navigation="true"` — they're JS-only overlay triggers, not real pages; the URL shown in the DOM (e.g. `/angebote/obst-und-gemuese/avocado`) 404s on direct navigation. This project's scrapers are all built around fetching a stable per-listing URL (`page.goto(listing.url)`); Penny has none. It would need a different scraper architecture (extract straight from the listing/category page's embedded data), and even then it's a **weekly-rotating circular, not a persistent catalog** — most curated items likely wouldn't exist under the same URL/slug the following week, breaking the price-history continuity the whole index depends on. Not pursued for now; flagged here as the one lead worth revisiting if Germany comes back into scope. |
 
 ---
 
@@ -112,19 +166,32 @@ Lidl France's scraper first has a second payoff beyond France alone.
   Lidl does; worth a quick check before ruling it in or out, not assumed
   either way.
 
-## 4. Recommended sequencing
+## 4. Outcome and what would change this
 
-1. **Finish Lidl France first** (already Phase 2 in `docs/france-expansion-plan.md`, not yet started) — given the robots.txt/platform match, building it first means Lidl Germany likely becomes a much smaller incremental effort rather than a from-scratch build, and validates or kills the "same platform" hypothesis before committing further.
-2. **Lidl Germany spike** — live Playwright verification of the actual DOM/selectors and pricing model (national vs. location-gated), the same kind of spike Auchan France got, informed by whatever Lidl France's build already learned.
-3. **Small pilot basket** for Lidl Germany once the spike confirms feasibility, following the same process as every other store.
-4. **Not planned for now**: Edeka, REWE, Kaufland, Aldi Süd, Netto — all confirmed blocked by enterprise bot mitigation, same disposition as Leclerc/Carrefour/Intermarché/Système U in France (see `CLAUDE.md`'s anti-bot section for how a blocked-but-wanted retailer is handled — legitimate third-party data sourcing only, not bypass tooling).
-5. **Aldi Nord** — worth a quick live check of whether it has real per-product online grocery pricing before deciding whether it's a second candidate; not investigated deeply enough yet to plan around either way.
+Germany is shelved, not permanently ruled out. What it would take to revisit:
+
+- **A German chain not yet checked** launches or is found to run an
+  independent, unblocked, persistent-catalog online shop (12 chains covering
+  Edeka, REWE, Kaufland, Aldi Nord/Süd, Lidl, Penny, Netto (both), Norma,
+  tegut, and Globus are already ruled out — see §1b/§1c — so this would need
+  to be a smaller/regional chain, e.g. Combi, Feneberg, Marktkauf, Bio
+  Company, none of which have been checked yet).
+- **Penny's architecture changes**, or someone builds the non-standard
+  extract-from-listing-page scraper and accepts the weekly-rotation
+  continuity risk (§1c) — this is the one concrete, partially-scoped path
+  already identified.
+- **A legitimate third-party data-provider relationship** materializes for
+  one of the blocked Tier-1 chains (official partner API, licensed panel
+  data like Kantar/NielsenIQ) — per `CLAUDE.md`'s anti-bot sourcing policy,
+  never a commercial anti-detection/scraping-API vendor.
+
+No code exists for Germany today — `scraper/lidl_germany.py` was never
+created; only research and the (unused) confirmation that `lidl_france.py`'s
+bug fixes would carry over if Lidl Germany ever becomes viable again.
 
 ## 5. Honest framing
 
-If this plays out as expected, Germany's initial coverage would be Lidl
-alone (~market share not yet quantified precisely for Lidl standalone within
-Schwarz Group's combined figure, but a single mid-tier discounter, not a
-market-leading share) — the same "narrower slice than Portugal's setup"
-framing already applied to France's Auchan-only coverage. Worth stating
-plainly in the UI once built, not implying broader coverage than exists.
+Portugal (4 stores) and France (2 stores: Auchan, Lidl) remain the project's
+only live country coverage. Germany contributes nothing right now — this
+should be reflected accurately in any UI/docs copy (no "3 countries" claim)
+until a real German data source is found.

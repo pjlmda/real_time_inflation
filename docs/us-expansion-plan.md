@@ -22,19 +22,18 @@ recorded). The other 15 chains checked are unchanged: top 4 by market share
 mitigation; Aldi US has a real catalog but its own `robots.txt` disallows
 all crawling, ruling it out by policy regardless of technical scrapability.
 On weights: BLS does publish a real COICOP/HICP crosswalk (correcting
-`CLAUDE.md`'s prior "no clean crosswalk" claim) — and a second pass
-localized exactly where the wall is: `api.bls.gov`'s JSON API works,
-unauthenticated, confirmed live; but **both** `www.bls.gov` (the site
-hosting R-COICOP/R-HICP `.xlsx` files) **and** `download.bls.gov` (BLS's
-separate bulk flat-file service) are Akamai-blocked, and `download.bls.gov`'s
-block page explicitly states BLS's own anti-automation policy in writing.
-Whether the specific weight/"relative importance" figures are exposed
-through the open `api.bls.gov` JSON endpoint (BLS says they should be, as
-"aspect metadata," added November 2024) is the one remaining unconfirmed
-step — needs a registered API key to test the exact request format. Net:
-Wegmans is a genuine, promising candidate worth a real DOM/pricing spike
-next; the weights side needs one more concrete API test, not abandoned
-research.
+`CLAUDE.md`'s prior "no clean crosswalk" claim), and a third pass
+**fully resolved** the access question in the best possible direction:
+`www.bls.gov` (the R-COICOP/R-HICP `.xlsx` files) and `download.bls.gov`
+(BLS's bulk flat-file service) are both Akamai-blocked, the latter with an
+explicit stated anti-automation policy — but the exact same unauthenticated
+`api.bls.gov` JSON endpoint already confirmed live serves current,
+correctly-structured expenditure-weight ("relative importance") data
+directly, **no API key or registration needed at all**, confirmed at both
+a broad-aggregate and fine-grained item level. Net: Wegmans is a genuine,
+promising candidate worth a real DOM/pricing spike next; the weights side
+is now a bounded, well-understood, freely-accessible data source, not an
+open access question.
 
 ---
 
@@ -144,33 +143,46 @@ Real caveats found, live, that keep this from being a simple "point
   clean, stated policy line, not just a technical obstacle — respecting it
   isn't optional under this project's own rules even if a technical
   bypass existed.
-- **What's still unconfirmed**: whether that same aspect/relative-importance
-  data is retrievable through the *other* channel BLS names —
-  `api.bls.gov`'s JSON time-series endpoint, already confirmed live and
-  open for regular index values (§ above). The aspect-metadata request
-  format wasn't tested against the live API in this pass (BLS's own
-  documentation suggests it may require a registered v2 API key, which
-  wasn't obtained here) — this is the one concrete, well-scoped next step,
-  not an open-ended unknown.
+- **Resolved, third pass, same day — weight data is confirmed live and
+  free, no registration needed.** Adding `"aspects": true` to the exact
+  same unauthenticated `POST` request already confirmed working returns
+  real relative-importance figures directly in the response, no v2 key
+  required: `curl -X POST api.bls.gov/publicAPI/v2/timeseries/data/ -d
+  '{"seriesid":["CUUR0000SEFA02"],"startyear":"2026","endyear":"2026","aspects":true}'`
+  returns, for each month, an `"aspects"` array including `"Relative
+  Importance": "0.133"` (this specific series was current as of May 2026).
+  Confirmed at multiple levels of granularity — a broad aggregate
+  (`CUUR0000SAF11`, "food at home," ~8.2% relative importance) and
+  fine-grained item strata (`CUUR0000SEFA01`/`SEFA02`, ~0.04-0.13% each) —
+  both return live, current, correctly-structured weight figures.
+- **One real nuance, not fully resolved**: what's confirmed above is BLS's
+  *native* CPI item-strata relative importance (BLS's own classification,
+  e.g. "Bread"/`SEFA01`-style series), not necessarily the specific
+  already-COICOP-relabeled output of the R-COICOP/R-HICP bridging process
+  — that finished, bridged product may still only exist in the paused/
+  blocked `.xlsx` files. This isn't a dead end either way: if the
+  finished bridged file stays unreachable, this project could build its
+  own BLS-item-to-COICOP crosswalk (the same kind of one-time mapping
+  work Eurostat's own COICOP taxonomy already does under the hood) using
+  the now-confirmed-free item-level weight data directly — a bounded,
+  concrete task, not a missing data source.
 - **Publication of the R-COICOP `.xlsx` was paused in December 2024**,
   per BLS's own site, "to be resumed when resources are available" — a
-  live currency risk. This project's whole weights model depends on a
-  yearly-refresh source that's actually maintained; a paused research
-  series is a real reason for caution, not just an inconvenience. This
-  doesn't affect the aspect-metadata/relative-importance data specifically
-  (a separate, apparently still-active data product, added in November
-  2024, after the R-COICOP pause) — worth keeping the two straight rather
-  than treating one pause as evidence about the other.
+  live currency risk for the *finished bridged* product specifically. It
+  doesn't affect the aspect-metadata/relative-importance data confirmed
+  above — that's a separate, apparently still-active data product
+  (added to the API in November 2024, after the R-COICOP pause, and
+  showing current May-2026 data just now) — worth keeping the two
+  straight rather than treating one pause as evidence about the other.
 
-**Net on weights**: better than `CLAUDE.md` previously stated — there is a
-real, official crosswalk, BLS runs a genuine, no-scraping-needed public API
-that's already confirmed live and working, and the specific place the
-weight data is blocked (`bls.gov`, `download.bls.gov`) is now precisely
-identified rather than a vague "the whole site might not work." The one
-remaining unresolved step — register a free `api.bls.gov` v2 key and test
-the aspect-metadata request format against a real food-category series —
-is small, concrete, and was the natural next action, not attempted in this
-pass for lack of a registered key.
+**Net on weights**: substantially better than `CLAUDE.md` previously
+stated. There is a real, official crosswalk methodology (R-COICOP/R-HICP),
+and — confirmed live, no registration, no key — BLS's public API freely
+serves current, granular, correctly-structured expenditure-weight data for
+any CPI item series. The weights side is no longer a "real methodology
+gap" in the way `CLAUDE.md` described it; at worst it's a bounded mapping
+task (BLS item strata → COICOP codes) using data that's already confirmed
+freely accessible, not a missing or blocked data source.
 
 ### 3.2 Multi-timezone is a genuinely new complexity class
 
@@ -212,12 +224,15 @@ already works.
 
 ## 4. What would need to happen before any code
 
-1. **Register a free `api.bls.gov` v2 API key and test the aspect-metadata
-   request format** against a real food-category series (e.g. the "food
-   at home" strata) to confirm relative-importance/weight figures are
-   actually retrievable that way. This determines whether `weights/bls.py`
-   is buildable the way `weights/eurostat.py` is — the one concrete,
-   well-scoped step left on the weights side.
+1. **Done — the `api.bls.gov` weights question is resolved.** Confirmed
+   live, no registration needed: a `POST` to
+   `api.bls.gov/publicAPI/v2/timeseries/data/` with `"aspects": true`
+   returns current relative-importance (weight) figures for any CPI item
+   series. `weights/bls.py` is buildable the way `weights/eurostat.py` is,
+   modulo the BLS-item-to-COICOP mapping nuance in §3.1 — building that
+   mapping (a one-time, bounded task, likely similar in spirit to how
+   `seed/categories.py` already encodes the ECOICOP taxonomy by hand) is
+   the real remaining weights work, not data access.
 2. **A proper DOM/pricing spike on Wegmans**, the same discipline every
    other store in this project got before a scraper got written: confirm
    the store-location selector flow end to end (does explicit ZIP/store
@@ -225,7 +240,16 @@ already works.
    that might behave oddly from a GitHub Actions runner's IP?), confirm
    price-block selectors are stable across multiple real products, and
    check for a promo/regular-price pattern the way every other store's
-   spike did.
+   spike did. **Attempted, not resolved, in this same research session**:
+   a quick attempt to click through the store-location selector button
+   hit the wrong element (a hamburger-menu button with a similar
+   `aria-haspopup` attribute, not the location selector itself); a search
+   for a live promoted/sale item across a category page and the
+   `/shop/coupons` page found no sale-price markers, and the coupons page
+   itself turned out to be sign-in-gated (a normal UX gate, not a bot
+   block, but not useful for this project's anonymous-session scrapers
+   either way). Both need a dedicated pass, not a blocker — matches the
+   kind of thing every other store's real spike had to work through.
 3. **A live single-day, multi-city price comparison** on Wegmans — it's
    regional (Northeast US: NY, PA, NJ, MA, VA, MD, NC, DC and others), so
    the open question isn't "national vs. regional" the way it was for
@@ -248,9 +272,14 @@ finding that Lidl was for both France and Germany, just for a smaller,
 Northeast-US-only regional chain rather than a national one. A US launch
 on Wegmans alone would start narrower than Portugal's three-store setup,
 the same "narrower slice" framing already applied to Auchan-only France —
-worth stating plainly, not implying broader US coverage than exists. This
-is closer to a "France" outcome (a real, reachable chain found, ready for
-a proper build spike) than a "Germany" one (exhausted, shelved) — though
-one more concrete step (the BLS weights-API key test) is still open before
-committing to a full build, since the whole point of this project's
-methodology is HICP-comparable weights, not just any price index.
+worth stating plainly, not implying broader US coverage than exists. With
+both the sourcing question (Wegmans) and the weights-access question (BLS's
+free public API) now resolved positively in this same research session,
+this reads closer to a "France" outcome (a real, reachable chain found,
+weights genuinely reachable, ready for a proper build spike) than a
+"Germany" one (exhausted, shelved). What's left before a full build is
+implementation-shaped, not open research: the Wegmans DOM/pricing spike
+(§4.2), the BLS item-to-COICOP mapping work (§3.1, §4.1), and the
+within-footprint price-variation check (§4.3) — the same sequence of steps
+every other store in this project went through, not a new category of
+unknown.

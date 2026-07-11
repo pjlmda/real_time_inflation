@@ -72,8 +72,9 @@ API_VERSION = "2023-09-22"
 # in-store prices for the same product, real isSoldAtStore=true stock.
 STORE_NUMBERS: dict[str, str] = {
     "wegmans-us-medford": "134",  # Long Island NY - the original build's default location
-    "wegmans-us-nyc": "156",  # Manhattan - confirmed highest of the three checked
+    "wegmans-us-nyc": "156",  # Manhattan - confirmed highest of the four checked
     "wegmans-us-fairfax": "16",  # Fairfax, VA - DC-metro, genuine out-of-NY-state market
+    "wegmans-us-chapelhill": "140",  # Chapel Hill, NC - southernmost point in the footprint, maximally distant from NY/VA
 }
 
 UNIT_PRICE_RE = re.compile(r"\$(\d+(?:\.\d+)?)\s*/\s*(.+)$")

@@ -96,8 +96,14 @@ def test_to_scraped_price_uses_in_stock_flag():
     assert scraped.in_stock is False
 
 
-def test_store_numbers_cover_all_three_tracked_locations():
-    assert set(STORE_NUMBERS.keys()) == {"wegmans-us-medford", "wegmans-us-nyc", "wegmans-us-fairfax"}
+def test_store_numbers_cover_all_four_tracked_locations():
+    assert set(STORE_NUMBERS.keys()) == {
+        "wegmans-us-medford",
+        "wegmans-us-nyc",
+        "wegmans-us-fairfax",
+        "wegmans-us-chapelhill",
+    }
     assert STORE_NUMBERS["wegmans-us-medford"] == "134"
     assert STORE_NUMBERS["wegmans-us-nyc"] == "156"
     assert STORE_NUMBERS["wegmans-us-fairfax"] == "16"
+    assert STORE_NUMBERS["wegmans-us-chapelhill"] == "140"

@@ -425,13 +425,17 @@ also happens to solve locations":
    now structurally ready to pick up a real example instead of silently
    missing it.
 
-**Three tracked locations, seeded and live-scraped**:
+**Four tracked locations, seeded and live-scraped** (a fourth added later
+the same day, per explicit instruction to add a location as geographically
+distant as possible from the first two states — NY and VA — already
+tracked):
 
 | Store slug | City | Store # | Confirmed milk price | Notes |
 |---|---|---|---|---|
 | `wegmans-us-medford` | Medford, NY | 134 | $2.99/gal | Original build's default; renamed from `wegmans-us` (`stores.id=64` preserved, no listing references broke) |
-| `wegmans-us-nyc` | Manhattan, NY | 156 | $3.99/gal | Highest of the three |
+| `wegmans-us-nyc` | Manhattan, NY | 156 | $3.99/gal | Highest of the four |
 | `wegmans-us-fairfax` | Fairfax, VA | 16 | $3.69/gal | Genuine out-of-NY-state market (DC metro) |
+| `wegmans-us-chapelhill` | Chapel Hill, NC | 140 | $2.49/gal | Cheapest of the four; southernmost point in Wegmans' whole footprint, maximally distant from the NY/VA locations |
 
 **Verified live**: `wegmans-us-nyc` ran for real — **55/58 listings,
 94.8% coverage** (3 fresh pork products genuinely not carried at the
@@ -440,16 +444,27 @@ Manhattan store — confirmed via the API returning `isSoldAtStore: false`,
 listing" gap already documented for Auchan France's two Drive locations,
 not a bug). `wegmans-us-fairfax` ran for real too — **54/58, 93%
 coverage** (the same 3 pork products plus 18-count eggs not carried there
-either). Both runs' `error_summary` cleanly names the unavailable product
-by name (e.g. `"product '54042' not carried at this store ('Wegmans
-Boneless Center-Cut Pork Chops')"`), confirming the clearer error message
-added during this rebuild works as intended. `wegmans-us-medford`'s
-listings were skipped by the existing same-day idempotency check (already
-scraped once today by the original DOM version before the rebuild) — the
-new code path is proven correct via the NYC/Fairfax real runs plus
-`tests/test_wegmans_parsing.py` (10 tests, all passing), since all three
-locations share the exact same `fetch_listing` function, just a different
-`storeNumber`.
+either). `wegmans-us-chapelhill` was pre-checked for full-basket availability
+*before* committing to it as the fourth location (the same diligence used
+for picking Fairfax) — both Chapel Hill and a second NC candidate (Wake
+Forest) showed identical **50/58 (86.2%) availability** at that moment,
+still comfortably above the 0.85 alert threshold; Chapel Hill was picked
+as the more nationally recognizable market of the two. The real scrape run
+minutes later did noticeably better — **55/58, 95% coverage**, only the
+same 3 pork products missing, not the extra dairy/personal-care items the
+pre-check had flagged. Worth stating plainly rather than picking whichever
+number looks better: Wegmans' availability API reflects live inventory,
+so a snapshot taken minutes apart can genuinely differ — the pre-check
+number wasn't wrong, it just wasn't the same instant as the real run. All runs' `error_summary`
+cleanly names the unavailable product by name (e.g. `"product '54042' not
+carried at this store ('Wegmans Boneless Center-Cut Pork Chops')"`),
+confirming the clearer error message added during the rebuild works as
+intended. `wegmans-us-medford`'s listings were skipped by the existing
+same-day idempotency check (already scraped once today by the original
+DOM version before the rebuild) — the new code path is proven correct via
+the other three locations' real runs plus `tests/test_wegmans_parsing.py`
+(10 tests, all passing), since all four locations share the exact same
+`fetch_listing` function, just a different `storeNumber`.
 
 Price basis clarified as a side effect of having the raw API response:
 `price_inStore`, not `price_delivery` — the latter runs consistently

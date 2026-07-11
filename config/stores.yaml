@@ -113,13 +113,16 @@ stores:
   # not national — the same "narrower slice than Portugal" framing already
   # applied to Auchan-only France.
   #
-  # Three locations tracked, not one, for the same reason Portugal tracks
+  # Four locations tracked, not one, for the same reason Portugal tracks
   # multiple stores and Auchan France tracks two Drive locations — Wegmans
   # prices are genuinely local, confirmed live 2026-07-11: the same product
   # (Vitamin D Whole Milk) priced $2.99/gallon at Medford NY vs. $3.99/gallon
   # in Manhattan, a 33% spread, querying the same commerce API different
   # `scraper/wegmans.py:STORE_NUMBERS` map. Fairfax, VA adds a genuine
-  # out-of-NY-state market (DC metro) rather than three NY-only samples.
+  # out-of-NY-state market (DC metro); Chapel Hill, NC — the southernmost
+  # point in Wegmans' whole footprint — adds a location maximally distant
+  # from both NY samples and Fairfax, rather than three mid-Atlantic-only
+  # samples.
   - slug: wegmans-us-medford
     name: Wegmans (Medford, NY)
     base_url: https://www.wegmans.com
@@ -152,6 +155,21 @@ stores:
 
   - slug: wegmans-us-fairfax
     name: Wegmans (Fairfax, VA)
+    base_url: https://www.wegmans.com
+    active: true
+    user_agents:
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    delay_seconds_min: 2
+    delay_seconds_max: 5
+    locale: en-US
+    timezone_id: America/New_York
+    currency: USD
+    country: US
+
+  - slug: wegmans-us-chapelhill
+    name: Wegmans (Chapel Hill, NC)
     base_url: https://www.wegmans.com
     active: true
     user_agents:

@@ -358,27 +358,35 @@ session/UI automation at all. `robots.txt` on that subdomain 404s (no
 restriction); it's the exact same call the site's own frontend makes,
 unauthenticated, to render the page every visitor sees.
 
-Three locations now tracked and seeded: `wegmans-us-medford` (renamed from
+Four locations now tracked and seeded: `wegmans-us-medford` (renamed from
 the original `wegmans-us`, `stores.id=64` preserved so no listing
 reference broke), `wegmans-us-nyc` (Manhattan), `wegmans-us-fairfax`
-(Fairfax, VA — genuine out-of-NY-state market). All three seeded with the
-same 58 products (379 listings total for Wegmans now, up from 58).
-`wegmans-us-nyc` ran for real: **55/58 listings, 94.8% coverage**;
-`wegmans-us-fairfax` too: **54/58, 93% coverage** — a small, overlapping
-set of products (3 fresh pork items at both, plus 18-count eggs at
-Fairfax) confirmed genuinely not carried at those specific stores
-(`isSoldAtStore: false`, `price_inStore: null` in the API response), the
-same "not every location carries every listing" gap already documented
-for Auchan France, not a bug. The rebuild also incidentally surfaced that
-`price_delivery` runs ~15-17% higher than `price_inStore` at every store
-checked — confirmed the scraper was already reading the correct basis
-(in-store, matching every other country in this project) rather than an
-accident.
+(Fairfax, VA — genuine out-of-NY-state market), and `wegmans-us-chapelhill`
+(Chapel Hill, NC — added per explicit follow-up instruction to add a
+location as geographically distant as possible from the first two states;
+Chapel Hill is the southernmost point in Wegmans' whole footprint). All
+four seeded with the same 58 products (437 listings total for Wegmans now,
+up from 58). `wegmans-us-nyc` ran for real: **55/58 listings, 94.8%
+coverage**; `wegmans-us-fairfax`: **54/58, 93%**; `wegmans-us-chapelhill`
+was pre-checked before being picked (86.2%, tied with a second NC
+candidate) and then ran for real minutes later at **55/58, 95%** — only
+the same 3 pork products missing, not the extra dairy/personal-care items
+the pre-check flagged (Wegmans' availability API reflects live inventory,
+so a snapshot minutes apart can genuinely differ; noted honestly rather
+than only reporting whichever number looks better). All failures confirmed
+genuinely not carried at those specific stores (`isSoldAtStore: false`,
+`price_inStore: null` in the API response), the same "not every location
+carries every listing" gap already documented for Auchan France, not a
+bug. The rebuild also incidentally surfaced that `price_delivery` runs
+~15-17% higher than `price_inStore` at every store checked — confirmed the
+scraper was already reading the correct basis (in-store, matching every
+other country in this project) rather than an accident.
 
 Full technical writeup (the API discovery, the three real reasons for a
 full rebuild rather than a location-count bump, the promo/loyalty fields
 this newly exposes) is in `docs/us-expansion-plan.md` §8, not duplicated
 here.
 
-Basket now at 220 products / 379 listings total (up from 162/205 before
-Wegmans, 263 before the multi-location rebuild).
+Basket now at 220 products / 437 listings total (up from 162/205 before
+Wegmans, 263 before the multi-location rebuild, 379 before the fourth
+location).

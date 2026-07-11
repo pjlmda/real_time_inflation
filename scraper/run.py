@@ -37,6 +37,7 @@ SCRAPERS = {
     "wegmans-us-medford": WegmansScraper,
     "wegmans-us-nyc": WegmansScraper,
     "wegmans-us-fairfax": WegmansScraper,
+    "wegmans-us-chapelhill": WegmansScraper,
     # lidl (Portugal): added once the widened pilot is verified (spec §11).
 }
 

@@ -86,3 +86,22 @@ stores:
     locale: fr-FR
     timezone_id: Europe/Paris
     country: FR
+
+  # Unlike Auchan France, prices are shown directly - no delivery-zone
+  # confirmation step, one national price like the Portuguese stores.
+  # Confirmed not bot-blocked live; slug is "lidl-fr" (not "lidl") since
+  # that slug is already taken by the seeded-but-inactive Portuguese entry
+  # above.
+  - slug: lidl-fr
+    name: Lidl France
+    base_url: https://www.lidl.fr
+    active: true
+    user_agents:
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    delay_seconds_min: 2
+    delay_seconds_max: 5
+    locale: fr-FR
+    timezone_id: Europe/Paris
+    country: FR

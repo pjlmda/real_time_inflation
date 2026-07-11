@@ -130,3 +130,15 @@ savon_mains_cosmia_fr,auchan-fr-paris,https://www.auchan.fr/cosmia-recharge-crem
 savon_mains_cosmia_fr,auchan-fr-marseille,https://www.auchan.fr/cosmia-recharge-creme-lavante-mains-coton/pr-C1777550,C1777550,3596710521623,ean
 huile_olive_auchan_fr,auchan-fr-paris,https://www.auchan.fr/auchan-huile-d-olive-vierge-extra-origine-espagne/pr-C1227331,C1227331,3596710463091,ean
 huile_olive_auchan_fr,auchan-fr-marseille,https://www.auchan.fr/auchan-huile-d-olive-vierge-extra-origine-espagne/pr-C1227331,C1227331,3596710463091,ean
+pain_de_mie_lidl_fr,lidl-fr,https://www.lidl.fr/p/maitre-jean-pierre-pain-de-mie-special-grandes-tranches/p10036700,10036700,TODO,manual
+spaghetti_lidl_fr,lidl-fr,https://www.lidl.fr/p/panzani-spaghetti/p10036837,10036837,TODO,manual
+boeuf_lidl_fr,lidl-fr,https://www.lidl.fr/p/l-etal-du-boucher-basse-cote-de-boeuf/p10036883,10036883,TODO,manual
+porc_lidl_fr,lidl-fr,https://www.lidl.fr/p/l-etal-du-boucher-5-steaks-de-porc/p10036640,10036640,TODO,manual
+poulet_lidl_fr,lidl-fr,https://www.lidl.fr/p/l-etal-du-volailler-eminces-de-filet-de-poulet/p10036639,10036639,TODO,manual
+saumon_fume_lidl_fr,lidl-fr,https://www.lidl.fr/p/nautica-saumon-fume/p10036162,10036162,TODO,manual
+thon_lidl_fr,lidl-fr,https://www.lidl.fr/p/deluxe-thon-msc-entier/p10036897,10036897,TODO,manual
+yaourt_vanille_lidl_fr,lidl-fr,https://www.lidl.fr/p/la-laitiere-yaourt-saveur-vanille/p10036836,10036836,TODO,manual
+emmental_lidl_fr,lidl-fr,https://www.lidl.fr/p/president-emmental-rape-fondant/p10036807,10036807,TODO,manual
+huile_olive_lidl_fr,lidl-fr,https://www.lidl.fr/p/primadonna-huile-d-olive-raffinee/p10036445,10036445,TODO,manual
+vin_rouge_lidl_fr,lidl-fr,https://www.lidl.fr/p/montagne-lussac-saint-emilion-aop/p10036711,10036711,TODO,manual
+douche_lidl_fr,lidl-fr,https://www.lidl.fr/p/sanex-douche-zero/p10036843,10036843,TODO,manual

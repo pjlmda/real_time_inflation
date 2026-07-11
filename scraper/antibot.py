@@ -10,6 +10,8 @@ import random
 from dataclasses import dataclass
 from urllib import robotparser
 
+import httpx
+
 from scraper.models import BlockDetected, FetchFailed
 
 # Explicit, auditable stealth patches — preferred over the `playwright-stealth`
@@ -36,13 +38,41 @@ RETRYABLE_STATUS = {403, 429, 500, 502, 503, 504}
 
 
 class RobotsChecker:
-    """Wraps stdlib `urllib.robotparser` for a single store's robots.txt."""
+    """Wraps stdlib `urllib.robotparser` for a single store's robots.txt.
+
+    Fetches via httpx rather than robotparser's own `.read()` (stdlib
+    `urllib`/`ssl`, which uses the OS/Python default trust store) — confirmed
+    live that some CDNs (Lidl's myracloud, both France and Germany) present
+    a certificate chain stdlib `ssl` can't complete (no AIA-chasing) even
+    though the exact same domain works fine in a real browser or via httpx's
+    certifi-based trust store. Parsing semantics still match stdlib's own
+    `.read()`: 401/403 disallows everything, other 4xx allows everything (no
+    robots.txt present), 2xx parses the content normally.
+    """
 
     def __init__(self, base_url: str, user_agent: str):
         self.parser = robotparser.RobotFileParser()
-        self.parser.set_url(base_url.rstrip("/") + "/robots.txt")
-        self.parser.read()
+        robots_url = base_url.rstrip("/") + "/robots.txt"
+        self.parser.set_url(robots_url)
+        self._fetch(robots_url)
         self.user_agent = user_agent
+
+    def _fetch(self, robots_url: str) -> None:
+        try:
+            resp = httpx.get(robots_url, timeout=15.0, follow_redirects=True)
+        except httpx.HTTPError:
+            # Unreachable robots.txt is treated the same as stdlib's
+            # behavior for a non-4xx failure: assume everything is allowed
+            # rather than blocking the whole run over a transient fetch issue.
+            self.parser.allow_all = True
+            return
+
+        if resp.status_code in (401, 403):
+            self.parser.disallow_all = True
+        elif resp.status_code >= 400:
+            self.parser.allow_all = True
+        else:
+            self.parser.parse(resp.text.splitlines())
 
     def allowed(self, url: str) -> bool:
         return self.parser.can_fetch(self.user_agent, url)

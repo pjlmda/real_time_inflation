@@ -21,6 +21,7 @@ from scraper.auchan_france import AuchanFranceScraper
 from scraper.continente import ContinenteScraper
 from scraper.continente_category import ContinenteCategoryCrawler
 from scraper.db import SupabaseWriter
+from scraper.lidl_france import LidlFranceScraper
 from scraper.pingodoce import PingoDoceScraper
 from scraper.pingodoce_category import PingoDoceCategoryCrawler
 from scraper.store_config import load_store_config
@@ -31,7 +32,8 @@ SCRAPERS = {
     "auchan": AuchanScraper,
     "auchan-fr-paris": AuchanFranceScraper,
     "auchan-fr-marseille": AuchanFranceScraper,
-    # lidl: added once the widened pilot is verified (spec §11).
+    "lidl-fr": LidlFranceScraper,
+    # lidl (Portugal): added once the widened pilot is verified (spec §11).
 }
 
 CATEGORY_CRAWLERS = {

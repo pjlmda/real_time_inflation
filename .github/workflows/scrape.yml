@@ -34,7 +34,24 @@ jobs:
       # stores in parallel at most is exactly what spec §7 allows.
       fail-fast: false
       matrix:
-        store: [continente, pingo-doce, auchan]
+        # `category` marks whether this store has a dynamic category-crawl
+        # scraper registered in scraper/run.py's CATEGORY_CRAWLERS — France's
+        # stores don't yet (only their fixed-basket scrapers exist), so their
+        # category step is skipped rather than failing the job with "No
+        # category scraper implemented for store ...".
+        include:
+          - store: continente
+            category: true
+          - store: pingo-doce
+            category: true
+          - store: auchan
+            category: true
+          - store: auchan-fr-paris
+            category: false
+          - store: auchan-fr-marseille
+            category: false
+          - store: lidl-fr
+            category: false
     steps:
       - uses: actions/checkout@v4
 
@@ -54,8 +71,10 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
-      # Per spec §10: "scrape.yml: basket + category crawl, all stores."
-      - run: uv run python -m scraper.run --store ${{ matrix.store }} --mode category
+      # Per spec §10: "scrape.yml: basket + category crawl, all stores." —
+      # only for stores with a category crawler registered (see matrix note).
+      - if: matrix.category
+        run: uv run python -m scraper.run --store ${{ matrix.store }} --mode category
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

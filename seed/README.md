@@ -192,3 +192,74 @@ not raw price:
 11 new listings, verified live: all scraped successfully at 100% coverage,
 prices matched curation research exactly. Basket now at 99 products / 109
 listings across 19 categories.
+
+## France: robustness round — 1-2 more products per category, always including the cheapest
+
+Both France stores' baskets had exactly one product per category, which
+means the within-class Jevons average had nothing to average — a single
+product's price move *is* the class index. To make the class averages more
+robust and to make sure each class's cheapest genuinely-available option is
+represented, 1-2 more products were curated per category at both Auchan
+France and Lidl France (2026-07-11), via the same live-verification
+discipline as every other curation round (real search results with visible
+price/price-per-unit, real PDP confirmation, no fabricated prices/URLs).
+
+**Auchan France** (11 categories, 2 additions each = 22 new products): for
+every category, both a budget/own-brand pick (Pouce — Auchan's economy
+private label, distinct from the "Auchan" brand itself — or Auchan-brand
+where Pouce didn't have a listing) and a recognizable national-brand pick
+(Barilla, Danone, Président, Puget, Harrys, etc.) were added, so each class
+mixes a discount tier and a mainstream tier. Olive oil is the one category
+where the existing Auchan-brand product was already effectively the
+cheapest tier live (~10€/L); the addition there (Auchan "vierge fruitée",
+a genuinely different SKU/variant) is for within-class robustness, not a
+new cheapest.
+
+**Lidl France** (12 categories, 1-2 additions each = 18 new products):
+followed the same `data-gridbox-impression` search-JSON curation method
+proven for the original 12-product basket. Real, disclosed gaps found
+during this round (same "don't force a poor-fit substitute" convention as
+every prior gap in this file):
+- **Pasta, beef, smoked fish, olive oil, personal care** got only 1 addition
+  each, not 2 — repeated, varied search terms (e.g. "penne", "pates
+  courtes" for pasta; "steak boeuf", "boeuf entrecote", "faux filet boeuf"
+  for beef) turned up no second genuine product in Lidl France's own
+  catalog, only unrelated non-food items or prepared/processed foods that
+  were a poor category fit (sushi/onigiri for smoked fish, camping gear and
+  bathroom textiles for personal care).
+- **A live curation mistake was caught before it reached the seed data**:
+  a "vin rouge" search result named "Fruits rouges" (€3.67) looked like a
+  fruity red wine by name, but its PDP showed it priced by weight (750g,
+  €/kg) rather than by volume (€/L) — the tell that it's actually a fresh
+  red-fruit produce item picked up by keyword overlap ("rouge"), not wine.
+  Dropped; wine got only 1 addition (Pays d'Oc Cabernet Sauvignon IGP, a
+  3L bag-in-box, €5.99) instead of 2.
+- **Package size wasn't always in the price footer**: 5 of the 18 Lidl
+  additions (bread/7-céréales, linguine, thon fumé, cheddar râpé, tomme de
+  brebis) were running a "Le 2e produit" (2nd-item) multi-buy promo, which
+  replaces the footer's usual size line with the promo terms instead of
+  showing the package weight. The real package size for these was found
+  elsewhere in the page's visible text (a weight token near the product
+  description) rather than the `.ods-price__footer` block `_parse_footer()`
+  normally reads — this only affects one-off seed curation, not the
+  scraper's own parsing (which doesn't need package size at scrape time).
+
+Brand→`is_store_brand` calls for the new Lidl products follow the same
+precedent set by the original 12: `L'Étal du Boucher`/`L'Étal du Volailler`
+(butcher/poultry private labels), `Deluxe`, `Primadonna`, and unbranded
+fresh/butcher items are Lidl's own → `true`; `Eridanous` (Lidl's Greek/
+Mediterranean specialty line), `Envia` (dairy), `Chêne d'Argent` (cheese)
+are treated the same way, also `true`, as they're store-specific lines not
+found outside Lidl. `Aquafresh` (major external toothpaste brand) → `false`.
+These are curation judgment calls, not verified against any financial
+disclosure — flagged here in case a more authoritative source turns up
+later.
+
+Auchan additions are tracked at both Drive locations (Paris + Marseille),
+matching the existing per-product convention. Live-verified end to end:
+Lidl France 18/18 (100% coverage), Auchan Paris 33/33 (100%), Auchan
+Marseille 31/33 (94% — 2 poultry listings, Duc and Le Gaulois, aren't
+carried at the Marseille Drive location; a genuine regional-assortment gap,
+not a bug, and still well above the 0.85 low-confidence threshold).
+
+Basket now at 162 products / 205 listings total (up from 123/144).

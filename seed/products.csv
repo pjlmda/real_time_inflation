@@ -121,3 +121,43 @@ emmental_lidl_fr,Emmental Rapé Fondant,Président,false,01.1.4.5,500,g,TODO
 huile_olive_lidl_fr,Huile d'olive raffinée,Primadonna,true,01.1.5.3,1,L,TODO
 vin_rouge_lidl_fr,Montagne/Lussac Saint-Émilion AOP,,true,02.1.2.1,750,ml,TODO
 douche_lidl_fr,Douche zero,Sanex,false,12.1.3.2,850,ml,TODO
+riz_pouce_auchan_fr,Riz long blanc prêt en 15-20min,Pouce,false,01.1.1.1,1,kg,3596710212392
+riz_incollable_auchan_fr,Riz long grain incollable,Auchan,true,01.1.1.1,1,kg,3596710230730
+pain_mie_complet_auchan_fr,Pain de mie complet grandes tranches spécial sandwich,Auchan,true,01.1.1.3,550,g,3596710556618
+pain_mie_harrys_auchan_fr,American Sandwich Pain de mie nature avec croûte sans sucres ajoutés,Harrys,false,01.1.1.3,550,g,3228857002184
+spaghetti_superieure_auchan_fr,Spaghetti de qualité supérieure,Auchan,true,01.1.1.6,1,kg,3596710396771
+spaghetti_barilla_auchan_fr,Spaghetti n°5,Barilla,false,01.1.1.6,500,g,8076800105056
+poulet_duc_auchan_fr,Filets de poulet blanc,Duc,false,01.1.2.4,720,g,3531940364008
+poulet_aiguillettes_auchan_fr,Aiguillettes de poulet blanc,Le Gaulois,false,01.1.2.4,210,g,3266980275891
+yaourt_nature_4x_auchan_fr,Yaourt nature 4x125g,Auchan,true,01.1.4.4,500,g,3596710540440
+yaourt_danone_auchan_fr,Yaourt nature 16x125g,Danone,false,01.1.4.4,2,kg,3033490004545
+emmental_pouce_auchan_fr,Emmental Rapé,Pouce,false,01.1.4.5,200,g,3596710544011
+emmental_president_auchan_fr,Emmental râpé fondant,President,false,01.1.4.5,200,g,3228021170046
+oeufs_pouce_auchan_fr,Oeufs de poules,Pouce,false,01.1.4.7,6,un,3596710520855
+oeufs_matines_auchan_fr,Oeufs de poules,Matines,false,01.1.4.7,30,un,3282070012504
+huile_olive_fruitee_auchan_fr,Huile d'olive vierge fruitée origine UE,Auchan,true,01.1.5.3,750,ml,3596710510528
+huile_olive_puget_auchan_fr,Huile d'olive vierge extra,Puget,false,01.1.5.3,1,L,3178050000749
+pommes_golden_auchan_fr,Pommes Golden,Cultivons le bon,false,01.1.6.1,6,un,3000018046530
+pommes_pinklady_auchan_fr,Pommes Pink Lady,,false,01.1.6.1,6,un,3000050047090
+tomates_prixbas_auchan_fr,Tomates rondes prix bas,,false,01.1.7.1,1,kg,3000010040574
+tomates_cerises_auchan_fr,Tomates cerises rondes en grappes,Auchan / Cultivons le bon,true,01.1.7.1,300,g,3254567902544
+gel_douche_pouce_auchan_fr,Gel douche parfum amande,Pouce,false,12.1.3.2,500,ml,3596710552542
+gel_douche_cosmia_auchan_fr,Gel douche mûre et grenade,Cosmia,false,12.1.3.2,750,ml,3596710516964
+pain_7cereales_lidl_fr,Pain de mie aux 7 céréales,Maitre Jean-Pierre,false,01.1.1.3,750,g,TODO
+baguette_croustille_lidl_fr,Baguette croustille,,true,01.1.1.3,1,un,TODO
+linguine_combino_lidl_fr,Linguine,Combino,false,01.1.1.6,500,g,TODO
+brochettes_boeuf_lidl_fr,7 brochettes de bœuf extra tendres,,true,01.1.2.1,665,g,TODO
+langue_porc_lidl_fr,Langue de porc,,true,01.1.2.2,280,g,TODO
+roti_porc_lidl_fr,Rôti de porc dans la noix,,true,01.1.2.2,1,kg,TODO
+escalopes_dinde_lidl_fr,2 escalopes de dinde à la Milanaise,L'Étal du Volailler,true,01.1.2.4,240,g,TODO
+cuisses_poulet_lidl_fr,Cuisses de poulet avec portion de dos,L'Étal du Volailler,true,01.1.2.4,2.5,kg,TODO
+saumon_pistaches_lidl_fr,Saumon norvégien aux pistaches,Deluxe,true,01.1.3.5,100,g,TODO
+thon_fume_lidl_fr,Thon MSC fumé,Eridanous,true,01.1.3.6,104,g,TODO
+thon_nixe_lidl_fr,Thon MSC entier au naturel 4x195g,Nixe,true,01.1.3.6,780,g,TODO
+yaourt_boire_lidl_fr,Yaourts à boire grand format,Envia,true,01.1.4.4,850,g,TODO
+yaourt_grecque_lidl_fr,Yaourt à la grecque 4x125g,Eridanous,true,01.1.4.4,500,g,TODO
+cheddar_rape_lidl_fr,Cheddar râpé,Chêne d'Argent,true,01.1.4.5,200,g,TODO
+tomme_brebis_lidl_fr,Tomme de brebis,Chêne d'Argent,true,01.1.4.5,320,g,TODO
+huile_olive_crete_lidl_fr,Huile d'olive vierge extra AOP de Crète,Eridanous,true,01.1.5.3,750,ml,TODO
+vin_pays_doc_lidl_fr,Pays d'Oc Cabernet Sauvignon IGP,,true,02.1.2.1,3,L,TODO
+dentifrice_lidl_fr,Dentifrice 2x125ml,Aquafresh,false,12.1.3.2,250,ml,TODO

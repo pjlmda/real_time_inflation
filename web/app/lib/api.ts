@@ -1,6 +1,7 @@
 import type {
   CategoryRow,
   CategorySeriesBulk,
+  CountryInfo,
   FuelRow,
   HealthResponse,
   LatestOverallResponse,
@@ -8,6 +9,8 @@ import type {
   SeriesPoint,
   StoreRow,
 } from "./types";
+
+export const DEFAULT_COUNTRY = "PT";
 
 function apiBaseUrl(): string {
   // Explicit override always wins (used for local dev, pointed at a
@@ -27,14 +30,21 @@ async function apiGet<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const getHealth = () => apiGet<HealthResponse>("/api/health");
-export const getLatestOverall = () => apiGet<LatestOverallResponse>("/api/inflation/latest");
-export const getCategories = () => apiGet<CategoryRow[]>("/api/categories");
-export const getStores = () => apiGet<StoreRow[]>("/api/stores");
-export const getProducts = () => apiGet<ProductRow[]>("/api/products");
-export const getFuelLatest = () => apiGet<FuelRow[]>("/api/fuel/latest");
+// /api/countries is deliberately not itself country-scoped (see
+// web/api/index.py) — it's what populates the switcher, so it takes no
+// country param.
+export const getCountries = () => apiGet<CountryInfo[]>("/api/countries");
+
+export const getHealth = (country: string) => apiGet<HealthResponse>(`/api/health?country=${country}`);
+export const getLatestOverall = (country: string) =>
+  apiGet<LatestOverallResponse>(`/api/inflation/latest?country=${country}`);
+export const getCategories = (country: string) => apiGet<CategoryRow[]>(`/api/categories?country=${country}`);
+export const getStores = (country: string) => apiGet<StoreRow[]>(`/api/stores?country=${country}`);
+export const getProducts = (country: string) => apiGet<ProductRow[]>(`/api/products?country=${country}`);
+export const getFuelLatest = (country: string) => apiGet<FuelRow[]>(`/api/fuel/latest?country=${country}`);
 
 export function getSeries(params: {
+  country: string;
   family?: "fixed_basket" | "category_avg";
   dimension?: "overall" | "category" | "store";
   value?: string;
@@ -42,6 +52,7 @@ export function getSeries(params: {
   basis?: "headline" | "effective";
 }): Promise<SeriesPoint[]> {
   const query = new URLSearchParams({
+    country: params.country,
     family: params.family ?? "fixed_basket",
     dimension: params.dimension ?? "overall",
     value: params.value ?? "ALL",
@@ -52,11 +63,13 @@ export function getSeries(params: {
 }
 
 export function getSeriesBulk(params: {
+  country: string;
   family?: "fixed_basket" | "category_avg";
   period?: "daily" | "weekly" | "monthly" | "yearly";
   basis?: "headline" | "effective";
 }): Promise<CategorySeriesBulk> {
   const query = new URLSearchParams({
+    country: params.country,
     family: params.family ?? "fixed_basket",
     period: params.period ?? "daily",
     basis: params.basis ?? "headline",

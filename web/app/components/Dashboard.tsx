@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type {
   CategoryRow,
+  CountryInfo,
   FuelRow,
   HealthResponse,
   LatestOverallResponse,
@@ -10,6 +11,7 @@ import type {
   StoreRow,
 } from "../lib/types";
 import CoverageBanner from "./CoverageBanner";
+import CountrySwitcher from "./CountrySwitcher";
 import FuelPanel from "./FuelPanel";
 import GapCard from "./GapCard";
 import HeadlineCard from "./HeadlineCard";
@@ -21,6 +23,8 @@ type Basis = "headline" | "effective";
 type Family = "fixed_basket" | "category_avg";
 
 interface Props {
+  country: string;
+  countries: CountryInfo[];
   health: HealthResponse;
   latest: LatestOverallResponse;
   categories: CategoryRow[];
@@ -33,20 +37,36 @@ interface Props {
   };
 }
 
-export default function Dashboard({ health, latest, categories, stores, fuel, series }: Props) {
+export default function Dashboard({
+  country,
+  countries,
+  health,
+  latest,
+  categories,
+  stores,
+  fuel,
+  series,
+}: Props) {
   const [basis, setBasis] = useState<Basis>("headline");
   const [family, setFamily] = useState<Family>("fixed_basket");
 
   const activeSeries =
     family === "category_avg" ? series.category_avg_effective : series[`fixed_basket_${basis}`];
 
+  const countryName = countries.find((c) => c.code === country)?.name;
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold">Portugal Real-Time Inflation Tracker</h1>
-        <p className="text-sm text-neutral-400">
-          Daily grocery &amp; fuel inflation, methodologically aligned with INE/Eurostat HICP.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">
+            {countryName ? `${countryName} Real-Time Inflation Tracker` : "Real-Time Inflation Tracker"}
+          </h1>
+          <p className="text-sm text-neutral-400">
+            Daily grocery &amp; fuel inflation, methodologically aligned with INE/Eurostat HICP.
+          </p>
+        </div>
+        <CountrySwitcher countries={countries} selected={country} />
       </header>
 
       <CoverageBanner health={health} />
@@ -65,7 +85,7 @@ export default function Dashboard({ health, latest, categories, stores, fuel, se
         <TimeSeriesChart data={activeSeries} />
       </section>
 
-      <CategoryBreakdown categories={categories} />
+      <CategoryBreakdown categories={categories} country={country} />
 
       <StoreComparison stores={stores} />
 

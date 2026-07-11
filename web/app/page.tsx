@@ -1,6 +1,8 @@
 import Dashboard from "./components/Dashboard";
 import {
+  DEFAULT_COUNTRY,
   getCategories,
+  getCountries,
   getFuelLatest,
   getHealth,
   getLatestOverall,
@@ -15,21 +17,31 @@ import {
 // app/lib/api.ts still caches each individual API response for an hour.
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const [health, latest, categories, stores, fuel, seriesHeadline, seriesEffective, seriesCategoryAvg] =
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ country?: string }>;
+}) {
+  const { country: countryParam } = await searchParams;
+  const country = countryParam ?? DEFAULT_COUNTRY;
+
+  const [countries, health, latest, categories, stores, fuel, seriesHeadline, seriesEffective, seriesCategoryAvg] =
     await Promise.all([
-      getHealth(),
-      getLatestOverall(),
-      getCategories(),
-      getStores(),
-      getFuelLatest(),
-      getSeries({ family: "fixed_basket", basis: "headline" }),
-      getSeries({ family: "fixed_basket", basis: "effective" }),
-      getSeries({ family: "category_avg", basis: "effective" }),
+      getCountries(),
+      getHealth(country),
+      getLatestOverall(country),
+      getCategories(country),
+      getStores(country),
+      getFuelLatest(country),
+      getSeries({ country, family: "fixed_basket", basis: "headline" }),
+      getSeries({ country, family: "fixed_basket", basis: "effective" }),
+      getSeries({ country, family: "category_avg", basis: "effective" }),
     ]);
 
   return (
     <Dashboard
+      country={country}
+      countries={countries}
       health={health}
       latest={latest}
       categories={categories}

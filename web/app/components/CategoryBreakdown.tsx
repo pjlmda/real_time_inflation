@@ -1,6 +1,12 @@
 import type { CategoryRow } from "../lib/types";
 
-export default function CategoryBreakdown({ categories }: { categories: CategoryRow[] }) {
+export default function CategoryBreakdown({
+  categories,
+  country,
+}: {
+  categories: CategoryRow[];
+  country: string;
+}) {
   const sorted = [...categories].sort((a, b) => (b.hicp_weight ?? 0) - (a.hicp_weight ?? 0));
 
   return (
@@ -13,7 +19,7 @@ export default function CategoryBreakdown({ categories }: { categories: Category
           </p>
         </div>
         <a
-          href="/personalize"
+          href={`/personalize?country=${country}`}
           className="shrink-0 rounded border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800"
         >
           Personalize my rate

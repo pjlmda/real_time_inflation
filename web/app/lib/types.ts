@@ -1,5 +1,13 @@
 // Mirrors web/api/db.py's `_shape_metric_row` and each endpoint's response shape.
 
+// Mirrors web/api/db.py's COUNTRY_INFO, filtered down to whatever
+// get_available_countries() finds has real inflation_metrics rows.
+export interface CountryInfo {
+  code: string;
+  name: string;
+  currency: string;
+}
+
 export interface MetricPoint {
   index_value: number | null;
   index_value_ma7: number | null;

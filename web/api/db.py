@@ -16,17 +16,39 @@ import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
+import httpx
 from dotenv import load_dotenv
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
 
-ACTIVE_STORES = ["continente", "pingo-doce", "auchan"]
-# This dashboard deployment is scoped to one market — Portugal — even though
-# the schema now supports more (migration 0007). inflation_metrics has no
-# per-row market selector on the frontend yet, so every query here is
-# explicitly pinned to ACTIVE_COUNTRY rather than reading every country's
-# rows mixed together (docs/france-expansion-plan.md §3.4). Revisit once a
-# second country's data actually exists and a market switcher is built.
-ACTIVE_COUNTRY = "PT"
+# `stores` has no persisted `is_active` column (only config/stores.yaml's
+# `active` flag) — this allowlist is what keeps a seeded-but-inactive store
+# (e.g. Portugal's `lidl`) out of /health and /stores. Keyed by country now
+# that the market switcher exists (docs/france-expansion-plan.md §3.4) —
+# extend this list, not the whole architecture, whenever a store's active
+# status changes.
+ACTIVE_STORES_BY_COUNTRY: dict[str, list[str]] = {
+    "PT": ["continente", "pingo-doce", "auchan"],
+    "FR": ["auchan-fr-paris", "auchan-fr-marseille", "lidl-fr"],
+    "US": ["wegmans-us-medford", "wegmans-us-nyc", "wegmans-us-fairfax", "wegmans-us-chapelhill"],
+}
+# Mirrors scraper/run.py's CATEGORY_CRAWLERS keys (this module can't import
+# that repo-root package — see the module docstring). Every store here is
+# PT; France's and Wegmans' stores are basket-only, no category crawler
+# exists for them yet. get_health() needs this to avoid reporting every
+# France/US store as permanently "unhealthy" for a category-mode scrape
+# that was never expected to run there in the first place — a real, latent
+# bug this file's country-scoping would otherwise have newly exposed.
+CATEGORY_CRAWL_STORES = {"continente", "pingo-doce", "auchan"}
+DEFAULT_COUNTRY = "PT"
+# Display metadata for the market switcher — a country only actually shows
+# up there if it also has real inflation_metrics rows (get_available_countries
+# filters this map down to that live-confirmed subset, so US won't appear
+# until its weights sync lands and metrics/compute.py has run for it).
+COUNTRY_INFO: dict[str, dict] = {
+    "PT": {"name": "Portugal", "currency": "EUR"},
+    "FR": {"name": "France", "currency": "EUR"},
+    "US": {"name": "United States", "currency": "USD"},
+}
 COVERAGE_ALERT_THRESHOLD = 0.85
 STALE_AFTER_HOURS = 36
 
@@ -36,7 +58,21 @@ def get_client() -> Client:
     # No-op in production (Vercel injects env vars directly, and load_dotenv
     # never overrides an already-set variable) — only meaningful for local dev.
     load_dotenv()
-    return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+    # supabase-py's default httpx client negotiates HTTP/2, and this one
+    # Client instance is shared (lru_cache) across every concurrent request
+    # this process serves. Each page load fires ~6-8 concurrent API calls
+    # (see web/app/page.tsx's Promise.all), and Supabase's gateway disconnects
+    # that shared HTTP/2 connection under a concurrent burst, surfacing as
+    # httpx.RemoteProtocolError: Server disconnected — confirmed live via a
+    # concurrent curl burst against /api/stores. Forcing HTTP/1.1 gives each
+    # concurrent request its own pooled connection instead of multiplexing
+    # over one connection that's vulnerable to being killed mid-burst.
+    transport = httpx.Client(http2=False)
+    return create_client(
+        os.environ["SUPABASE_URL"],
+        os.environ["SUPABASE_SERVICE_KEY"],
+        options=ClientOptions(httpx_client=transport),
+    )
 
 
 def _is_stale(iso_timestamp: str | None) -> bool:
@@ -47,21 +83,38 @@ def _is_stale(iso_timestamp: str | None) -> bool:
 
 
 class SupabaseReader:
-    def __init__(self, client: Client | None = None):
+    def __init__(self, client: Client | None = None, country: str = DEFAULT_COUNTRY):
         self.client = client or get_client()
+        self.country = country
+
+    # --- /countries ---
+
+    def get_available_countries(self) -> list[dict]:
+        # Only countries with real inflation_metrics rows are offered in the
+        # switcher — US is seeded/scraped but has none yet (weights sync
+        # still pending), so it stays absent here until that actually lands,
+        # rather than showing a country that would render an empty dashboard.
+        rows = self.client.table("inflation_metrics").select("country").execute().data
+        present = {row["country"] for row in rows}
+        return [
+            {"code": code, "name": info["name"], "currency": info["currency"]}
+            for code, info in COUNTRY_INFO.items()
+            if code in present
+        ]
 
     # --- /health ---
 
     def get_health(self) -> dict:
         stores: dict[str, dict] = {}
         healthy = True
-        for slug in ACTIVE_STORES:
+        for slug in ACTIVE_STORES_BY_COUNTRY.get(self.country, []):
             store_resp = self.client.table("stores").select("id").eq("slug", slug).limit(1).execute()
             if not store_resp.data:
                 continue
             store_id = store_resp.data[0]["id"]
+            modes = ("basket", "category") if slug in CATEGORY_CRAWL_STORES else ("basket",)
             per_mode: dict[str, dict | None] = {}
-            for mode in ("basket", "category"):
+            for mode in modes:
                 resp = (
                     self.client.table("scrape_runs")
                     .select("status, coverage, finished_at, blocked")
@@ -78,14 +131,24 @@ class SupabaseReader:
             stores[slug] = per_mode
 
         compute_resp = (
-            self.client.table("inflation_metrics").select("computed_at").order("computed_at", desc=True).limit(1).execute()
+            self.client.table("inflation_metrics")
+            .select("computed_at")
+            .eq("country", self.country)
+            .order("computed_at", desc=True)
+            .limit(1)
+            .execute()
         )
         latest_computed_at = compute_resp.data[0]["computed_at"] if compute_resp.data else None
         compute_stale = _is_stale(latest_computed_at)
 
-        fuel_resp = self.client.table("fuel_prices").select("fetched_at").order("fetched_at", desc=True).limit(1).execute()
-        latest_fetched_at = fuel_resp.data[0]["fetched_at"] if fuel_resp.data else None
-        fuel_stale = _is_stale(latest_fetched_at)
+        # fuel_prices is genuinely Portugal-only (see get_fuel_latest) - no
+        # staleness signal applies to any other country, not a missing filter.
+        latest_fetched_at = None
+        fuel_stale = False
+        if self.country == "PT":
+            fuel_resp = self.client.table("fuel_prices").select("fetched_at").order("fetched_at", desc=True).limit(1).execute()
+            latest_fetched_at = fuel_resp.data[0]["fetched_at"] if fuel_resp.data else None
+            fuel_stale = _is_stale(latest_fetched_at)
 
         return {
             "healthy": healthy and not compute_stale,
@@ -100,7 +163,7 @@ class SupabaseReader:
         resp = (
             self.client.table("inflation_metrics")
             .select("as_of_date")
-            .eq("country", ACTIVE_COUNTRY)
+            .eq("country", self.country)
             .order("as_of_date", desc=True)
             .limit(1)
             .execute()
@@ -117,7 +180,7 @@ class SupabaseReader:
             .select("*")
             .eq("as_of_date", as_of_date)
             .eq("dimension", "overall")
-            .eq("country", ACTIVE_COUNTRY)
+            .eq("country", self.country)
             .execute()
         )
         result: dict = {"as_of_date": as_of_date, "fixed_basket": {}, "category_avg": {}}
@@ -140,7 +203,7 @@ class SupabaseReader:
             .eq("dimension_value", dimension_value)
             .eq("period", period)
             .eq("price_basis", basis)
-            .eq("country", ACTIVE_COUNTRY)
+            .eq("country", self.country)
             .order("as_of_date")
             .execute()
         )
@@ -157,7 +220,7 @@ class SupabaseReader:
         weights = (
             self.client.table("category_weights")
             .select("ecoicop2_code, hicp_weight")
-            .eq("country", ACTIVE_COUNTRY)
+            .eq("country", self.country)
             .execute()
             .data
         )
@@ -170,7 +233,7 @@ class SupabaseReader:
             .eq("as_of_date", as_of_date)
             .eq("dimension", "category")
             .eq("period", "daily")
-            .eq("country", ACTIVE_COUNTRY)
+            .eq("country", self.country)
             .execute()
             .data
             if as_of_date
@@ -194,7 +257,7 @@ class SupabaseReader:
             .eq("index_family", "fixed_basket")
             .eq("price_basis", "headline")
             .eq("period", "daily")
-            .eq("country", ACTIVE_COUNTRY)
+            .eq("country", self.country)
             .order("as_of_date")
             .execute()
             .data
@@ -228,7 +291,7 @@ class SupabaseReader:
             .eq("index_family", family)
             .eq("period", period)
             .eq("price_basis", basis)
-            .eq("country", ACTIVE_COUNTRY)
+            .eq("country", self.country)
             .order("as_of_date")
             .execute()
             .data
@@ -249,7 +312,8 @@ class SupabaseReader:
     def get_stores(self) -> list[dict]:
         # `stores` has no is_active column (only config/stores.yaml's `active`
         # flag, not persisted) — filter to the stores actually being scraped.
-        stores = self.client.table("stores").select("*").in_("slug", ACTIVE_STORES).execute().data
+        active_slugs = ACTIVE_STORES_BY_COUNTRY.get(self.country, [])
+        stores = self.client.table("stores").select("*").in_("slug", active_slugs).execute().data if active_slugs else []
         as_of_date = self.get_latest_as_of_date()
         latest = (
             self.client.table("inflation_metrics")
@@ -257,7 +321,7 @@ class SupabaseReader:
             .eq("as_of_date", as_of_date)
             .eq("dimension", "store")
             .eq("period", "daily")
-            .eq("country", ACTIVE_COUNTRY)
+            .eq("country", self.country)
             .execute()
             .data
             if as_of_date
@@ -295,17 +359,25 @@ class SupabaseReader:
     # --- /products ---
 
     def get_products(self) -> list[dict]:
-        # Not yet country-scoped: products/product_listings have no direct
-        # country column of their own (it'd need a join through stores), and
-        # no non-PT products are seeded yet. Needs the same treatment as the
-        # inflation_metrics queries above before any French products exist.
+        # products/product_listings have no direct country column of their
+        # own — scoped here via a join through stores (two round trips:
+        # store ids for this country, then listings at those stores) rather
+        # than a products-table filter, since the same canonical_name+brand
+        # product could in principle exist in more than one country.
+        store_ids = [
+            row["id"]
+            for row in self.client.table("stores").select("id").eq("country", self.country).execute().data
+        ]
         products = self.client.table("products").select("*, categories(ecoicop2_code, name_en)").eq("is_active", True).execute().data
         listings = (
             self.client.table("product_listings")
             .select("*, stores(slug)")
             .eq("is_active", True)
+            .in_("store_id", store_ids)
             .execute()
             .data
+            if store_ids
+            else []
         )
         listing_ids = [listing["id"] for listing in listings]
         latest_snapshots: dict[int, dict] = {}
@@ -339,14 +411,23 @@ class SupabaseReader:
                 "category": product["categories"]["ecoicop2_code"] if product.get("categories") else None,
                 "package_size": product["package_size"],
                 "package_unit": product["package_unit"],
-                "listings": listings_by_product.get(product["id"], []),
+                "listings": listings_by_product[product["id"]],
             }
             for product in products
+            # Excluded, not shown with an empty listings array, if this
+            # product has no listing at any store in the selected country.
+            if product["id"] in listings_by_product
         ]
 
     # --- /fuel/latest ---
 
     def get_fuel_latest(self) -> list[dict]:
+        # fuel_prices has no country column at all (migration 0004, predates
+        # multi-country) — it's genuinely Portugal-only (DGEG, Portugal's own
+        # energy regulator), not a scoping gap to paper over. Empty result
+        # for any other country is the honest answer, not a missing filter.
+        if self.country != "PT":
+            return []
         rows = self.client.table("fuel_prices").select("*").order("scrape_date", desc=True).execute().data
         by_fuel_type: dict[str, list[dict]] = {}
         for row in rows:

@@ -279,7 +279,7 @@ rather than a single global constant — a real, if small, code change to
 `scraper/db.py`'s `lisbon_scrape_date()`/`is_same_lisbon_day()` and every
 call site currently assuming there's only one relevant timezone.
 
-### 3.4 Frontend and API have no market concept at all
+### 3.4 Frontend and API have no market concept at all — resolved 2026-07-12
 
 `web/api/db.py`'s every query (`get_categories`, `get_stores`,
 `get_latest_overall`, `get_series`, ...) has no country/market filter —
@@ -289,6 +289,29 @@ threaded through, and the Next.js dashboard needs either a market switcher
 or a decision to run separate deployments per market. Not attempted in this
 plan — flagged as the natural next question once the backend actually has
 two markets' data to serve.
+
+**Done, 2026-07-12**: every `SupabaseReader` method takes a `country`
+constructor param instead of reading a module-level `ACTIVE_COUNTRY`
+constant; every FastAPI endpoint takes a `country` query param
+(`web/api/index.py`); a new `GET /api/countries` endpoint lists only
+countries with real `inflation_metrics` rows (so a market only appears once
+it has real data, e.g. the US won't show up until its BLS weights sync and
+`metrics/compute.py` has run for it); the Next.js dashboard and
+`/personalize` page both got a `CountrySwitcher` dropdown
+(`web/app/components/CountrySwitcher.tsx`) that updates a `?country=` URL
+param via `next/navigation`, with every internal link (dashboard ↔
+personalize) threading that param through so it survives navigation.
+Along the way, found and fixed a real, pre-existing concurrency bug this
+work made newly testable: `web/api/db.py`'s single `lru_cache`d Supabase
+`Client` used HTTP/2 by default, and a page load's ~6-8 concurrent API
+calls (`Promise.all` in `page.tsx`) would intermittently kill that shared
+connection under Supabase's gateway (`httpx.RemoteProtocolError: Server
+disconnected`, confirmed live via a concurrent curl burst) — this predates
+the country switcher (the same `Promise.all` fan-out already existed for
+PT alone) and likely caused occasional 500s in production before now.
+Fixed by forcing the client onto HTTP/1.1 (`ClientOptions(httpx_client=...)`
+in `get_client()`), verified with repeated 8-way concurrent bursts against
+`/api/stores` (all 200 after the fix, intermittent 500s before it).
 
 ### 3.5 New, from scratch: the basket itself
 

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import LineChart from "../components/LineChart";
 import WeightPieChart from "../components/WeightPieChart";
-import type { CategoryRow, CategorySeriesBulk, SeriesPoint } from "../lib/types";
+import CountrySwitcher from "../components/CountrySwitcher";
+import type { CategoryRow, CategorySeriesBulk, CountryInfo, SeriesPoint } from "../lib/types";
 import {
   decodeWeights,
   defaultWeights,
@@ -15,11 +16,15 @@ import {
 const SLIDER_MAX = 25;
 
 export default function PersonalizeDashboard({
+  country,
+  countries,
   categories,
   bulkSeries,
   officialSeries,
   initialWeightParam,
 }: {
+  country: string;
+  countries: CountryInfo[];
   categories: CategoryRow[];
   bulkSeries: CategorySeriesBulk;
   officialSeries: SeriesPoint[];
@@ -109,6 +114,7 @@ export default function PersonalizeDashboard({
 
   const latestPersonalized = [...personalizedValues].reverse().find((v) => v !== null) ?? null;
   const latestOfficial = officialSeries.at(-1)?.index_value ?? null;
+  const countryName = countries.find((c) => c.code === country)?.name ?? null;
 
   function resetToOfficial() {
     setWeights(defaultWeights(categories));
@@ -128,15 +134,18 @@ export default function PersonalizeDashboard({
           <h1 className="text-2xl font-semibold">Personalize your inflation rate</h1>
           <p className="text-sm text-neutral-400">
             Adjust each category&apos;s weight to match your own household&apos;s spending, instead of the
-            average Portuguese household HICP uses.
+            average household HICP uses{countryName ? ` in ${countryName}` : ""}.
           </p>
         </div>
-        <a
-          href="/"
-          className="shrink-0 rounded border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800"
-        >
-          ← Back to dashboard
-        </a>
+        <div className="flex shrink-0 items-center gap-2">
+          <CountrySwitcher countries={countries} selected={country} />
+          <a
+            href={`/?country=${country}`}
+            className="rounded border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800"
+          >
+            ← Back to dashboard
+          </a>
+        </div>
       </header>
 
       <div className="rounded-lg border border-yellow-800 bg-yellow-950/30 p-4 text-sm text-yellow-200">
@@ -260,7 +269,7 @@ export default function PersonalizeDashboard({
       </section>
 
       <div className="text-center">
-        <a href="/" className="text-sm text-neutral-400 hover:text-neutral-200">
+        <a href={`/?country=${country}`} className="text-sm text-neutral-400 hover:text-neutral-200">
           ← Back to dashboard
         </a>
       </div>

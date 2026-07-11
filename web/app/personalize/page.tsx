@@ -1,5 +1,5 @@
 import PersonalizeDashboard from "./PersonalizeDashboard";
-import { getCategories, getSeries, getSeriesBulk } from "../lib/api";
+import { DEFAULT_COUNTRY, getCategories, getCountries, getSeries, getSeriesBulk } from "../lib/api";
 
 // Same reasoning as app/page.tsx: the API function this fetches from is
 // built/deployed alongside this page, so it can't be prerendered at build
@@ -9,17 +9,22 @@ export const dynamic = "force-dynamic";
 export default async function PersonalizePage({
   searchParams,
 }: {
-  searchParams: Promise<{ w?: string }>;
+  searchParams: Promise<{ w?: string; country?: string }>;
 }) {
-  const [{ w }, categories, bulkSeries, officialSeries] = await Promise.all([
-    searchParams,
-    getCategories(),
-    getSeriesBulk({ family: "fixed_basket", basis: "headline" }),
-    getSeries({ family: "fixed_basket", basis: "headline" }),
+  const { w, country: countryParam } = await searchParams;
+  const country = countryParam ?? DEFAULT_COUNTRY;
+
+  const [countries, categories, bulkSeries, officialSeries] = await Promise.all([
+    getCountries(),
+    getCategories(country),
+    getSeriesBulk({ country, family: "fixed_basket", basis: "headline" }),
+    getSeries({ country, family: "fixed_basket", basis: "headline" }),
   ]);
 
   return (
     <PersonalizeDashboard
+      country={country}
+      countries={countries}
       categories={categories}
       bulkSeries={bulkSeries}
       officialSeries={officialSeries}

@@ -1,6 +1,7 @@
+import { memo } from "react";
 import type { LatestOverallResponse } from "../lib/types";
 
-export default function GapCard({ latest }: { latest: LatestOverallResponse }) {
+function GapCard({ latest }: { latest: LatestOverallResponse }) {
   const headline = latest.fixed_basket.headline?.daily?.index_value;
   const effective = latest.fixed_basket.effective?.daily?.index_value;
 
@@ -30,6 +31,8 @@ export default function GapCard({ latest }: { latest: LatestOverallResponse }) {
     </section>
   );
 }
+
+export default memo(GapCard);
 
 function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (

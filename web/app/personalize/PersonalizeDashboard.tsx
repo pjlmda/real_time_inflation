@@ -5,6 +5,7 @@ import LineChart from "../components/LineChart";
 import WeightPieChart from "../components/WeightPieChart";
 import CountrySwitcher from "../components/CountrySwitcher";
 import type { CategoryRow, CategorySeriesBulk, CountryInfo, SeriesPoint } from "../lib/types";
+import { formatNumber } from "../lib/format";
 import {
   decodeWeights,
   defaultWeights,
@@ -158,13 +159,13 @@ export default function PersonalizeDashboard({
         <div className="rounded-lg border border-neutral-800 p-5">
           <div className="text-sm text-neutral-400">Your personalized index (today)</div>
           <div className="mt-1 text-3xl font-semibold tabular-nums text-emerald-400">
-            {latestPersonalized != null ? latestPersonalized.toFixed(2) : "—"}
+            {formatNumber(latestPersonalized)}
           </div>
         </div>
         <div className="rounded-lg border border-neutral-800 p-5">
           <div className="text-sm text-neutral-400">Official HICP-comparable index (today)</div>
           <div className="mt-1 text-3xl font-semibold tabular-nums text-blue-400">
-            {latestOfficial != null ? latestOfficial.toFixed(2) : "—"}
+            {formatNumber(latestOfficial)}
           </div>
         </div>
       </section>

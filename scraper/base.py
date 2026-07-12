@@ -5,18 +5,17 @@ idempotent skip, backoff, alerting, scrape_runs lifecycle) lives here once.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from pathlib import Path
 
 from playwright.async_api import BrowserContext, Page, async_playwright
 
 from alerting.base import Notifier
-from scraper.antibot import RobotsChecker, apply_stealth, sleep_jitter, with_backoff
+from scraper.antibot import RobotsChecker, sleep_jitter, with_backoff
 from scraper.db import SupabaseWriter, is_same_day
 from scraper.models import BlockDetected, FetchFailed, Listing, RunResult, ScrapedPrice
+from scraper.runner_common import build_context, send_run_alert
 from scraper.store_config import StoreConfig
 
 COVERAGE_ALERT_THRESHOLD = 0.85
-PROFILE_DIR = Path(__file__).resolve().parent.parent / ".pw-profile"
 
 
 class BaseScraper(ABC):
@@ -38,19 +37,7 @@ class BaseScraper(ABC):
         403/429/5xx, `BlockDetected` on CAPTCHA/block pages."""
 
     async def _build_context(self, playwright) -> BrowserContext:
-        launch_kwargs: dict = {
-            "user_data_dir": str(PROFILE_DIR / self.config.slug),
-            "headless": True,
-            "locale": self.config.locale,
-            "timezone_id": self.config.timezone_id,
-            "user_agent": self.config.user_agent,
-            "extra_http_headers": {"Accept-Language": "pt-PT,pt;q=0.9"},
-        }
-        if self.proxy_url:
-            launch_kwargs["proxy"] = {"server": self.proxy_url}
-        context = await playwright.chromium.launch_persistent_context(**launch_kwargs)
-        await apply_stealth(context)
-        return context
+        return await build_context(playwright, self.config, self.proxy_url)
 
     async def run(self, mode: str = "basket") -> RunResult:
         store_id = self.db.get_store_id(self.config.slug)
@@ -76,13 +63,14 @@ class BaseScraper(ABC):
                 error_summary="skipped: blocked earlier today",
             )
 
-        robots = RobotsChecker(self.config.base_url, self.config.user_agent)
+        robots = await RobotsChecker(self.config.base_url, self.config.user_agent).load()
         self.db.update_robots_checked(store_id)
         delay = max(
             self.config.delay_seconds_min, robots.crawl_delay() or self.config.delay_seconds_min
         )
 
         listings = self.db.get_active_listings(store_id)
+        captured_today_ids = self.db.get_captured_today_listing_ids([listing.id for listing in listings])
         try:
             run_id = self.db.start_run(store_id, mode)
         except Exception as exc:
@@ -104,7 +92,7 @@ class BaseScraper(ABC):
             page = await context.new_page()
             try:
                 for listing in listings:
-                    if self.db.listing_already_captured_today(listing.id):
+                    if listing.id in captured_today_ids:
                         continue
                     if not robots.allowed(listing.url):
                         failed += 1
@@ -134,6 +122,7 @@ class BaseScraper(ABC):
                     await sleep_jitter(delay, max(delay, self.config.delay_seconds_max))
             finally:
                 await context.close()
+                await self._teardown()
 
         coverage = (ok / attempted) if attempted else 1.0
         if blocked:
@@ -178,17 +167,9 @@ class BaseScraper(ABC):
         return result
 
     async def _alert(self, result: RunResult, db_error: Exception | None = None) -> None:
-        message = (
-            f"*{self.config.name}* scrape run {result.status.upper()}\n"
-            f"attempted={result.attempted} ok={result.ok} failed={result.failed} "
-            f"coverage={result.coverage:.0%}\n"
-            f"{result.error_summary or ''}"
-        )
-        if db_error is not None:
-            message += f"\n*DB write failed while finishing this run*: {db_error}"
-        await self.notifier.send(message)
-        try:
-            self.db.mark_alerted(result.run_id)
-        except Exception:  # noqa: BLE001 - best-effort dedup flag; losing it just risks a
-            # duplicate alert next time, which beats losing the alert entirely.
-            pass
+        await send_run_alert(self.notifier, self.db, self.config.name, result, "scrape run", db_error=db_error)
+
+    async def _teardown(self) -> None:
+        """Hook for a subclass to release resources it set up itself (e.g.
+        an HTTP client opened once for the whole run) — no-op by default,
+        called after the Playwright context closes."""

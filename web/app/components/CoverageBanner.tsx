@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { HealthResponse } from "../lib/types";
 
 function formatTime(iso: string | null): string {
@@ -14,7 +15,7 @@ function formatTime(iso: string | null): string {
   });
 }
 
-export default function CoverageBanner({ health }: { health: HealthResponse }) {
+function CoverageBanner({ health }: { health: HealthResponse }) {
   return (
     <section
       className={`rounded-lg border p-4 text-sm ${
@@ -33,9 +34,14 @@ export default function CoverageBanner({ health }: { health: HealthResponse }) {
         {Object.entries(health.stores).map(([slug, modes]) => (
           <span key={slug}>
             {slug}: basket {modes.basket?.status ?? "—"} ({((modes.basket?.coverage ?? 0) * 100).toFixed(0)}%)
+            {modes.basket?.blocked && (
+              <span className="ml-1 rounded bg-red-900 px-1 text-xs text-red-300">blocked</span>
+            )}
           </span>
         ))}
       </div>
     </section>
   );
 }
+
+export default memo(CoverageBanner);

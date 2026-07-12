@@ -1,13 +1,22 @@
+import { memo, useMemo } from "react";
 import type { CategoryRow } from "../lib/types";
+import { formatNumber, formatPercent, rateColorClass } from "../lib/format";
 
-export default function CategoryBreakdown({
+function CategoryBreakdown({
   categories,
   country,
 }: {
   categories: CategoryRow[];
   country: string;
 }) {
-  const sorted = [...categories].sort((a, b) => (b.hicp_weight ?? 0) - (a.hicp_weight ?? 0));
+  // categories is a static server-fetched prop that never changes within
+  // this client subtree — this component still re-renders on every
+  // Dashboard basis/family toggle (it's part of that "use client" tree even
+  // without its own directive), so avoid re-sorting on every one of those.
+  const sorted = useMemo(
+    () => [...categories].sort((a, b) => (b.hicp_weight ?? 0) - (a.hicp_weight ?? 0)),
+    [categories]
+  );
 
   return (
     <section className="rounded-lg border border-neutral-800 p-5">
@@ -47,7 +56,7 @@ export default function CategoryBreakdown({
                 <tr key={cat.ecoicop2_code} className="border-t border-neutral-800">
                   <td className="py-2 pr-4">{cat.name_en}</td>
                   <td className="py-2 pr-4 tabular-nums text-neutral-400">
-                    {cat.hicp_weight?.toFixed(2) ?? "—"}
+                    {formatNumber(cat.hicp_weight)}
                   </td>
                   <td
                     className="py-2 pr-4 tabular-nums cursor-help"
@@ -57,23 +66,18 @@ export default function CategoryBreakdown({
                         : undefined
                     }
                   >
-                    {metric ? metric.index_value?.toFixed(2) : "—"}
+                    {formatNumber(metric?.index_value)}
                     {metric?.low_confidence && (
                       <span className="ml-1 rounded bg-yellow-900 px-1 text-xs text-yellow-300">low confidence</span>
                     )}
                   </td>
                   <td
-                    className={`py-2 pr-4 tabular-nums ${
-                      metric?.inflation_rate == null
-                        ? "text-neutral-500"
-                        : metric.inflation_rate > 0
-                          ? "text-red-400"
-                          : metric.inflation_rate < 0
-                            ? "text-green-400"
-                            : ""
-                    }`}
+                    className={`py-2 pr-4 tabular-nums ${rateColorClass(metric?.inflation_rate, {
+                      unknown: "text-neutral-500",
+                      neutral: "",
+                    })}`}
                   >
-                    {metric?.inflation_rate != null ? `${metric.inflation_rate.toFixed(2)}%` : "—"}
+                    {formatPercent(metric?.inflation_rate)}
                   </td>
                 </tr>
               );
@@ -84,3 +88,5 @@ export default function CategoryBreakdown({
     </section>
   );
 }
+
+export default memo(CategoryBreakdown);

@@ -1,17 +1,12 @@
 "use client";
 
 import type { LatestOverallResponse } from "../lib/types";
+import { formatNumber, formatSignedPercent, rateColorClass } from "../lib/format";
 
 interface Props {
   latest: LatestOverallResponse;
   basis: "headline" | "effective";
   onBasisChange: (basis: "headline" | "effective") => void;
-}
-
-function formatRate(rate: number | null): string {
-  if (rate === null) return "—";
-  const sign = rate > 0 ? "+" : "";
-  return `${sign}${rate.toFixed(2)}%`;
 }
 
 export default function HeadlineCard({ latest, basis, onBasisChange }: Props) {
@@ -44,9 +39,7 @@ export default function HeadlineCard({ latest, basis, onBasisChange }: Props) {
       </div>
 
       <div className="flex items-baseline gap-3">
-        <span className="text-5xl font-bold tabular-nums">
-          {headlineValue !== null ? headlineValue.toFixed(2) : "—"}
-        </span>
+        <span className="text-5xl font-bold tabular-nums">{formatNumber(headlineValue)}</span>
         <span className="text-neutral-400">index (base 100)</span>
       </div>
       <p className="mt-1 text-xs text-neutral-500">7-day moving average of the daily index</p>
@@ -62,11 +55,10 @@ export default function HeadlineCard({ latest, basis, onBasisChange }: Props) {
 }
 
 function RateStat({ label, rate }: { label: string; rate: number | null }) {
-  const color = rate === null ? "text-neutral-400" : rate > 0 ? "text-red-400" : rate < 0 ? "text-green-400" : "text-neutral-300";
   return (
     <div>
       <dt className="text-xs text-neutral-500">{label}</dt>
-      <dd className={`text-lg font-medium tabular-nums ${color}`}>{formatRate(rate)}</dd>
+      <dd className={`text-lg font-medium tabular-nums ${rateColorClass(rate)}`}>{formatSignedPercent(rate)}</dd>
     </div>
   );
 }

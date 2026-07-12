@@ -45,29 +45,6 @@ export interface StoreRow {
   last_scrape: { status: string; coverage: number; finished_at: string } | null;
 }
 
-export interface ProductListing {
-  store: string;
-  url: string;
-  latest_price: {
-    listing_id: number;
-    scrape_date: string;
-    price: number;
-    regular_price: number;
-    price_per_unit: number;
-    unit_basis: string;
-    is_promotion: boolean;
-  } | null;
-}
-
-export interface ProductRow {
-  canonical_name: string;
-  brand: string | null;
-  category: string | null;
-  package_size: number;
-  package_unit: string;
-  listings: ProductListing[];
-}
-
 export interface FuelRow {
   fuel_type: "gasoline_95" | "diesel" | "lpg_auto";
   scrape_date: string;

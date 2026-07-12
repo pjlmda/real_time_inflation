@@ -5,7 +5,6 @@ import type {
   FuelRow,
   HealthResponse,
   LatestOverallResponse,
-  ProductRow,
   SeriesPoint,
   StoreRow,
 } from "./types";
@@ -40,7 +39,6 @@ export const getLatestOverall = (country: string) =>
   apiGet<LatestOverallResponse>(`/api/inflation/latest?country=${country}`);
 export const getCategories = (country: string) => apiGet<CategoryRow[]>(`/api/categories?country=${country}`);
 export const getStores = (country: string) => apiGet<StoreRow[]>(`/api/stores?country=${country}`);
-export const getProducts = (country: string) => apiGet<ProductRow[]>(`/api/products?country=${country}`);
 export const getFuelLatest = (country: string) => apiGet<FuelRow[]>(`/api/fuel/latest?country=${country}`);
 
 export function getSeries(params: {

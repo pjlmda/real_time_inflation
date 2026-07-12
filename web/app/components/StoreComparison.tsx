@@ -1,10 +1,16 @@
+import { memo, useMemo } from "react";
 import type { StoreRow } from "../lib/types";
 
-export default function StoreComparison({ stores }: { stores: StoreRow[] }) {
-  const values = stores
-    .map((s) => s.latest["fixed_basket_headline"]?.index_value)
-    .filter((v): v is number => v != null);
-  const maxDeviation = Math.max(1, ...values.map((v) => Math.abs(v - 100)));
+function StoreComparison({ stores }: { stores: StoreRow[] }) {
+  // stores is a static server-fetched prop — avoid recomputing this on
+  // every Dashboard basis/family toggle re-render (see CategoryBreakdown's
+  // identical reasoning for the same pattern).
+  const maxDeviation = useMemo(() => {
+    const values = stores
+      .map((s) => s.latest["fixed_basket_headline"]?.index_value)
+      .filter((v): v is number => v != null);
+    return Math.max(1, ...values.map((v) => Math.abs(v - 100)));
+  }, [stores]);
 
   return (
     <section className="rounded-lg border border-neutral-800 p-5">
@@ -41,3 +47,5 @@ export default function StoreComparison({ stores }: { stores: StoreRow[] }) {
     </section>
   );
 }
+
+export default memo(StoreComparison);

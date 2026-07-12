@@ -14,13 +14,13 @@ import yaml
 from playwright.async_api import BrowserContext, Page, async_playwright
 
 from alerting.base import Notifier
-from scraper.antibot import RobotsChecker, apply_stealth
+from scraper.antibot import RobotsChecker
 from scraper.db import SupabaseWriter
 from scraper.models import CategoryStats, RunResult
+from scraper.runner_common import build_context, send_run_alert
 from scraper.store_config import StoreConfig
 
 COVERAGE_ALERT_THRESHOLD = 0.85
-PROFILE_DIR = Path(__file__).resolve().parent.parent / ".pw-profile"
 CATEGORY_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "category_urls.yaml"
 # Below this, a "category crawl" isn't a meaningful sample for median/quantiles.
 MIN_PRODUCTS_FOR_STATS = 5
@@ -61,23 +61,11 @@ class CategoryCrawlerBase(ABC):
         category doesn't abort the whole crawl."""
 
     async def _build_context(self, playwright) -> BrowserContext:
-        launch_kwargs: dict = {
-            "user_data_dir": str(PROFILE_DIR / f"{self.config.slug}-category"),
-            "headless": True,
-            "locale": self.config.locale,
-            "timezone_id": self.config.timezone_id,
-            "user_agent": self.config.user_agent,
-            "extra_http_headers": {"Accept-Language": "pt-PT,pt;q=0.9"},
-        }
-        if self.proxy_url:
-            launch_kwargs["proxy"] = {"server": self.proxy_url}
-        context = await playwright.chromium.launch_persistent_context(**launch_kwargs)
-        await apply_stealth(context)
-        return context
+        return await build_context(playwright, self.config, self.proxy_url, profile_suffix="-category")
 
     async def run(self) -> RunResult:
         store_id = self.db.get_store_id(self.config.slug)
-        robots = RobotsChecker(self.config.base_url, self.config.user_agent)
+        robots = await RobotsChecker(self.config.base_url, self.config.user_agent).load()
         self.db.update_robots_checked(store_id)
         delay_range = (
             max(
@@ -101,13 +89,22 @@ class CategoryCrawlerBase(ABC):
         attempted = ok = failed = 0
         error_reasons: list[str] = []
 
+        # Batched once for the whole crawl instead of two round trips
+        # (get_category_id + category_already_captured_today) per configured
+        # category inside the loop below.
+        ecoicop2_codes = list(self.category_config.keys())
+        category_id_by_code = self.db.get_category_ids(ecoicop2_codes)
+        captured_today_ids = self.db.get_captured_today_category_ids(
+            store_id, list(category_id_by_code.values())
+        )
+
         async with async_playwright() as playwright:
             context = await self._build_context(playwright)
             page = await context.new_page()
             try:
                 for ecoicop2_code, cat_config in self.category_config.items():
-                    category_id = self.db.get_category_id(ecoicop2_code)
-                    if self.db.category_already_captured_today(store_id, category_id):
+                    category_id = category_id_by_code[ecoicop2_code]
+                    if category_id in captured_today_ids:
                         continue
 
                     attempted += 1
@@ -166,20 +163,7 @@ class CategoryCrawlerBase(ABC):
         return result
 
     async def _alert(self, result: RunResult, db_error: Exception | None = None) -> None:
-        message = (
-            f"*{self.config.name}* category crawl {result.status.upper()}\n"
-            f"attempted={result.attempted} ok={result.ok} failed={result.failed} "
-            f"coverage={result.coverage:.0%}\n"
-            f"{result.error_summary or ''}"
-        )
-        if db_error is not None:
-            message += f"\n*DB write failed while finishing this run*: {db_error}"
-        await self.notifier.send(message)
-        try:
-            self.db.mark_alerted(result.run_id)
-        except Exception:  # noqa: BLE001 - best-effort dedup flag; losing it just risks a
-            # duplicate alert next time, which beats losing the alert entirely.
-            pass
+        await send_run_alert(self.notifier, self.db, self.config.name, result, "category crawl", db_error=db_error)
 
 
 def _compute_stats(prices: list[float]) -> CategoryStats:

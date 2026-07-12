@@ -1,4 +1,6 @@
+import { memo } from "react";
 import type { FuelRow } from "../lib/types";
+import { formatSigned, rateColorClass } from "../lib/format";
 
 const LABELS: Record<FuelRow["fuel_type"], string> = {
   gasoline_95: "Gasoline 95",
@@ -6,7 +8,7 @@ const LABELS: Record<FuelRow["fuel_type"], string> = {
   lpg_auto: "LPG (auto)",
 };
 
-export default function FuelPanel({ fuel }: { fuel: FuelRow[] }) {
+function FuelPanel({ fuel }: { fuel: FuelRow[] }) {
   if (fuel.length === 0) return null;
 
   return (
@@ -28,9 +30,8 @@ export default function FuelPanel({ fuel }: { fuel: FuelRow[] }) {
                 {delta === null ? (
                   "no week-ago comparison yet"
                 ) : (
-                  <span className={delta > 0 ? "text-red-400" : delta < 0 ? "text-green-400" : ""}>
-                    {delta > 0 ? "+" : ""}
-                    {delta.toFixed(3)} vs. a week ago
+                  <span className={rateColorClass(delta, { neutral: "" })}>
+                    {formatSigned(delta, 3)} vs. a week ago
                   </span>
                 )}
               </div>
@@ -41,3 +42,5 @@ export default function FuelPanel({ fuel }: { fuel: FuelRow[] }) {
     </section>
   );
 }
+
+export default memo(FuelPanel);

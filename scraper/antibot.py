@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from urllib import robotparser
 
 import httpx
+from playwright.async_api import Page, Response
 
 from scraper.models import BlockDetected, FetchFailed
 
@@ -52,20 +53,25 @@ class RobotsChecker:
 
     def __init__(self, base_url: str, user_agent: str):
         self.parser = robotparser.RobotFileParser()
-        robots_url = base_url.rstrip("/") + "/robots.txt"
-        self.parser.set_url(robots_url)
-        self._fetch(robots_url)
+        self.robots_url = base_url.rstrip("/") + "/robots.txt"
+        self.parser.set_url(self.robots_url)
         self.user_agent = user_agent
 
-    def _fetch(self, robots_url: str) -> None:
+    async def load(self) -> "RobotsChecker":
+        """Fetches and parses robots.txt — a separate async step from
+        __init__ (rather than fetching synchronously at construction time)
+        so this blocking network call doesn't stall the event loop that the
+        rest of the scraping pipeline runs on. Callers always do
+        `await RobotsChecker(base_url, user_agent).load()`."""
         try:
-            resp = httpx.get(robots_url, timeout=15.0, follow_redirects=True)
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(self.robots_url, timeout=15.0, follow_redirects=True)
         except httpx.HTTPError:
             # Unreachable robots.txt is treated the same as stdlib's
             # behavior for a non-4xx failure: assume everything is allowed
             # rather than blocking the whole run over a transient fetch issue.
             self.parser.allow_all = True
-            return
+            return self
 
         if resp.status_code in (401, 403):
             self.parser.disallow_all = True
@@ -73,6 +79,7 @@ class RobotsChecker:
             self.parser.allow_all = True
         else:
             self.parser.parse(resp.text.splitlines())
+        return self
 
     def allowed(self, url: str) -> bool:
         return self.parser.can_fetch(self.user_agent, url)
@@ -109,6 +116,40 @@ async def apply_stealth(context) -> None:
 class RetryableHttpError(Exception):
     status: int
     retry_after: float | None = None
+
+
+async def goto_checked(page: Page, url: str, timeout: int = 30_000) -> Response | None:
+    """`page.goto` + the retry-status check every DOM-based store scraper
+    repeated verbatim (continente/pingodoce/auchan/auchan_france/lidl_france)
+    — raises RetryableHttpError on a 403/429/5xx response, otherwise returns
+    the response for the caller's own block-detection check."""
+    response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+    if response is not None and response.status in RETRYABLE_STATUS:
+        retry_after = None
+        header = response.headers.get("retry-after")
+        if header and header.isdigit():
+            retry_after = float(header)
+        raise RetryableHttpError(status=response.status, retry_after=retry_after)
+    return response
+
+
+async def any_visible(page: Page, selectors: list[str]) -> bool:
+    """Whether any of these selectors match at least one element — the
+    out-of-stock check duplicated verbatim across continente/pingodoce/auchan."""
+    for selector in selectors:
+        if await page.locator(selector).count() > 0:
+            return True
+    return False
+
+
+def promotion_label_from_prices(price: float, regular_price: float) -> str:
+    """'-N%' from a promo/regular price pair — the percentage-off arithmetic
+    duplicated across continente/pingodoce/auchan/lidl_france. Callers
+    decide *whether* to call this (e.g. a strike-through/regular-price DOM
+    element was present, and regular_price > 0) — this is just the shared
+    formatting, not the decision of when a promotion applies."""
+    pct_off = round((1 - price / regular_price) * 100)
+    return f"-{pct_off}%"
 
 
 async def with_backoff(fn, max_attempts: int = 4):

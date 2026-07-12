@@ -81,20 +81,30 @@ UNIT_PRICE_RE = re.compile(r"\$(\d+(?:\.\d+)?)\s*/\s*(.+)$")
 
 
 class WegmansScraper(BaseScraper):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Lazily created on first fetch_listing call, reused across every
+        # listing in the run instead of opening a fresh httpx.AsyncClient
+        # (and its own connection/TLS handshake) per listing — closed in
+        # _teardown() once the run finishes.
+        self._client: httpx.AsyncClient | None = None
+
     async def fetch_listing(self, page: Page, listing: Listing) -> ScrapedPrice:
         store_number = STORE_NUMBERS.get(self.config.slug)
         if store_number is None:
             raise FetchFailed(f"no Wegmans storeNumber configured for store slug {self.config.slug!r}")
 
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.get(
-                    COMMERCE_API_URL,
-                    params={"productid": listing.store_sku, "storeNumber": store_number, "api-version": API_VERSION},
-                    timeout=30.0,
-                )
-            except httpx.HTTPError as exc:
-                raise RetryableHttpError(status=0) from exc
+        if self._client is None:
+            self._client = httpx.AsyncClient()
+
+        try:
+            response = await self._client.get(
+                COMMERCE_API_URL,
+                params={"productid": listing.store_sku, "storeNumber": store_number, "api-version": API_VERSION},
+                timeout=30.0,
+            )
+        except httpx.HTTPError as exc:
+            raise RetryableHttpError(status=0) from exc
 
         if response.status_code in RETRYABLE_STATUS:
             retry_after = response.headers.get("retry-after")
@@ -109,6 +119,11 @@ class WegmansScraper(BaseScraper):
         if not payload:
             raise FetchFailed(f"no product data returned for listing {listing.id} (store {store_number})")
         return _to_scraped_price(payload[0])
+
+    async def _teardown(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
 
 def _to_scraped_price(item: dict) -> ScrapedPrice:

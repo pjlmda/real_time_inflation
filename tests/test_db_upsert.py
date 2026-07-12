@@ -82,18 +82,52 @@ def test_upsert_snapshot_uses_the_writers_own_configured_currency():
     assert call.payload["currency"] == "USD"
 
 
-def test_listing_already_captured_today_true_when_row_exists():
+def test_get_captured_today_listing_ids_returns_set_of_captured_ids():
     writer, client = make_writer()
-    client.table("price_snapshots").select_results.append([{"id": 1}])
+    client.table("price_snapshots").select_results.append([{"listing_id": 42}, {"listing_id": 7}])
 
-    assert writer.listing_already_captured_today(listing_id=42) is True
+    result = writer.get_captured_today_listing_ids([42, 7, 99])
+
+    assert result == {42, 7}
+    call = client.tables["price_snapshots"].calls[0]
+    assert ("in", "listing_id", [42, 7, 99]) in call.filters
+    assert ("eq", "scrape_date", scrape_date_for_timezone("Europe/Lisbon")) in call.filters
 
 
-def test_listing_already_captured_today_false_when_no_rows():
+def test_get_captured_today_listing_ids_returns_empty_without_querying_when_no_ids():
     writer, client = make_writer()
-    client.table("price_snapshots").select_results.append([])
 
-    assert writer.listing_already_captured_today(listing_id=42) is False
+    result = writer.get_captured_today_listing_ids([])
+
+    assert result == set()
+    assert client.tables == {}  # never even touched price_snapshots
+
+
+def test_get_category_ids_keyed_by_ecoicop2_code():
+    writer, client = make_writer()
+    client.table("categories").select_results.append(
+        [{"id": 3, "ecoicop2_code": "01.1.1.1"}, {"id": 8, "ecoicop2_code": "01.1.1.3"}]
+    )
+
+    result = writer.get_category_ids(["01.1.1.1", "01.1.1.3"])
+
+    assert result == {"01.1.1.1": 3, "01.1.1.3": 8}
+    call = client.tables["categories"].calls[0]
+    assert ("in", "ecoicop2_code", ["01.1.1.1", "01.1.1.3"]) in call.filters
+
+
+def test_get_captured_today_category_ids_returns_set_scoped_to_store():
+    writer, client = make_writer()
+    client.table("category_observations").select_results.append(
+        [{"category_id": 3}, {"category_id": 8}]
+    )
+
+    result = writer.get_captured_today_category_ids(store_id=5, category_ids=[3, 8, 12])
+
+    assert result == {3, 8}
+    call = client.tables["category_observations"].calls[0]
+    assert ("eq", "store_id", 5) in call.filters
+    assert ("in", "category_id", [3, 8, 12]) in call.filters
 
 
 def test_finish_run_sends_status_and_coverage():

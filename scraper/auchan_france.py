@@ -48,7 +48,7 @@ import re
 
 from playwright.async_api import Page
 
-from scraper.antibot import RETRYABLE_STATUS, RetryableHttpError, detect_block
+from scraper.antibot import detect_block, goto_checked
 from scraper.base import BaseScraper
 from scraper.models import BlockDetected, FetchFailed, Listing, ScrapedPrice
 
@@ -123,13 +123,7 @@ class AuchanFranceScraper(BaseScraper):
             pass
 
     async def fetch_listing(self, page: Page, listing: Listing) -> ScrapedPrice:
-        response = await page.goto(listing.url, wait_until="domcontentloaded", timeout=30_000)
-        if response is not None and response.status in RETRYABLE_STATUS:
-            retry_after = None
-            header = response.headers.get("retry-after")
-            if header and header.isdigit():
-                retry_after = float(header)
-            raise RetryableHttpError(status=response.status, retry_after=retry_after)
+        await goto_checked(page, listing.url)
 
         html = await page.content()
         if detect_block(html):

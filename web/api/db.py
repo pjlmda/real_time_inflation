@@ -211,7 +211,7 @@ class SupabaseReader:
 
         resp = (
             self.client.table("inflation_metrics")
-            .select("*")
+            .select("index_family, price_basis, period, index_value, index_value_ma7, inflation_rate, n_products, coverage")
             .eq("as_of_date", as_of_date)
             .eq("dimension", "overall")
             .eq("country", self.country)
@@ -246,7 +246,13 @@ class SupabaseReader:
     # --- /categories ---
 
     def get_categories(self) -> list[dict]:
-        categories = self.client.table("categories").select("*").order("ecoicop2_code").execute().data
+        categories = (
+            self.client.table("categories")
+            .select("ecoicop2_code, name_pt, name_en")
+            .order("ecoicop2_code")
+            .execute()
+            .data
+        )
 
         # Weights are country-specific (migration 0007's category_weights),
         # while `categories` itself stays the shared, country-agnostic
@@ -263,7 +269,10 @@ class SupabaseReader:
         as_of_date = self.get_latest_as_of_date()
         latest = (
             self.client.table("inflation_metrics")
-            .select("*")
+            .select(
+                "dimension_value, index_family, price_basis, index_value, index_value_ma7, "
+                "inflation_rate, n_products, coverage"
+            )
             .eq("as_of_date", as_of_date)
             .eq("dimension", "category")
             .eq("period", "daily")
@@ -364,11 +373,18 @@ class SupabaseReader:
         # `stores` has no is_active column (only config/stores.yaml's `active`
         # flag, not persisted) — filter to the stores actually being scraped.
         active_slugs = ACTIVE_STORES_BY_COUNTRY.get(self.country, [])
-        stores = self.client.table("stores").select("*").in_("slug", active_slugs).execute().data if active_slugs else []
+        stores = (
+            self.client.table("stores").select("id, slug, name").in_("slug", active_slugs).execute().data
+            if active_slugs
+            else []
+        )
         as_of_date = self.get_latest_as_of_date()
         latest = (
             self.client.table("inflation_metrics")
-            .select("*")
+            .select(
+                "dimension_value, index_family, price_basis, index_value, index_value_ma7, "
+                "inflation_rate, n_products, coverage"
+            )
             .eq("as_of_date", as_of_date)
             .eq("dimension", "store")
             .eq("period", "daily")
@@ -436,10 +452,16 @@ class SupabaseReader:
             row["id"]
             for row in self.client.table("stores").select("id").eq("country", self.country).execute().data
         ]
-        products = self.client.table("products").select("*, categories(ecoicop2_code, name_en)").eq("is_active", True).execute().data
+        products = (
+            self.client.table("products")
+            .select("id, canonical_name, brand, package_size, package_unit, categories(ecoicop2_code)")
+            .eq("is_active", True)
+            .execute()
+            .data
+        )
         listings = (
             self.client.table("product_listings")
-            .select("*, stores(slug)")
+            .select("id, product_id, url, stores(slug)")
             .eq("is_active", True)
             .in_("store_id", store_ids)
             .execute()
@@ -496,7 +518,13 @@ class SupabaseReader:
         # for any other country is the honest answer, not a missing filter.
         if self.country != "PT":
             return []
-        rows = self.client.table("fuel_prices").select("*").order("scrape_date", desc=True).execute().data
+        rows = (
+            self.client.table("fuel_prices")
+            .select("fuel_type, scrape_date, price, unit")
+            .order("scrape_date", desc=True)
+            .execute()
+            .data
+        )
         by_fuel_type: dict[str, list[dict]] = {}
         for row in rows:
             by_fuel_type.setdefault(row["fuel_type"], []).append(row)

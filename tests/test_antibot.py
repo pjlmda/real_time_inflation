@@ -9,12 +9,30 @@ from scraper.models import BlockDetected, FetchFailed
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _patch_robots_response(monkeypatch, status_code: int, text: str = ""):
-    def fake_get(url, *args, **kwargs):
-        request = httpx.Request("GET", url)
-        return httpx.Response(status_code, text=text, request=request)
+class _FakeAsyncClient:
+    def __init__(self, response=None, exc=None):
+        self._response = response
+        self._exc = exc
 
-    monkeypatch.setattr(httpx, "get", fake_get)
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        return False
+
+    async def get(self, url, *args, **kwargs):
+        if self._exc is not None:
+            raise self._exc
+        return self._response
+
+
+def _patch_robots_response(monkeypatch, status_code: int, text: str = ""):
+    def fake_client(*args, **kwargs):
+        request = httpx.Request("GET", "https://example.com/robots.txt")
+        response = httpx.Response(status_code, text=text, request=request)
+        return _FakeAsyncClient(response=response)
+
+    monkeypatch.setattr(httpx, "AsyncClient", fake_client)
 
 
 def test_detect_block_on_captcha_page():
@@ -88,16 +106,18 @@ async def test_with_backoff_never_retries_block_detected():
     assert calls == 1
 
 
-def test_robots_checker_parses_content_on_200(monkeypatch):
+@pytest.mark.asyncio
+async def test_robots_checker_parses_content_on_200(monkeypatch):
     _patch_robots_response(monkeypatch, 200, text="User-agent: *\nDisallow: /admin/\n")
 
-    checker = RobotsChecker("https://example.com", "test-agent")
+    checker = await RobotsChecker("https://example.com", "test-agent").load()
 
     assert checker.allowed("https://example.com/product/1") is True
     assert checker.allowed("https://example.com/admin/panel") is False
 
 
-def test_robots_checker_disallows_everything_on_403(monkeypatch):
+@pytest.mark.asyncio
+async def test_robots_checker_disallows_everything_on_403(monkeypatch):
     # Real bug this guards against: stdlib urllib/ssl can't complete some
     # CDNs' certificate chains (confirmed live for Lidl's myracloud CDN)
     # even though the same domain works fine via httpx/a real browser -
@@ -106,25 +126,27 @@ def test_robots_checker_disallows_everything_on_403(monkeypatch):
     # robotparser's own documented behavior for 401/403 (disallow all).
     _patch_robots_response(monkeypatch, 403)
 
-    checker = RobotsChecker("https://example.com", "test-agent")
+    checker = await RobotsChecker("https://example.com", "test-agent").load()
 
     assert checker.allowed("https://example.com/anything") is False
 
 
-def test_robots_checker_allows_everything_on_404(monkeypatch):
+@pytest.mark.asyncio
+async def test_robots_checker_allows_everything_on_404(monkeypatch):
     _patch_robots_response(monkeypatch, 404)
 
-    checker = RobotsChecker("https://example.com", "test-agent")
+    checker = await RobotsChecker("https://example.com", "test-agent").load()
 
     assert checker.allowed("https://example.com/anything") is True
 
 
-def test_robots_checker_allows_everything_when_unreachable(monkeypatch):
-    def fake_get(*args, **kwargs):
-        raise httpx.ConnectError("connection refused")
+@pytest.mark.asyncio
+async def test_robots_checker_allows_everything_when_unreachable(monkeypatch):
+    def fake_client(*args, **kwargs):
+        return _FakeAsyncClient(exc=httpx.ConnectError("connection refused"))
 
-    monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(httpx, "AsyncClient", fake_client)
 
-    checker = RobotsChecker("https://example.com", "test-agent")
+    checker = await RobotsChecker("https://example.com", "test-agent").load()
 
     assert checker.allowed("https://example.com/anything") is True

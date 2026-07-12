@@ -62,17 +62,22 @@ class SupabaseWriter:
         )
         return [Listing(**row) for row in resp.data]
 
-    def listing_already_captured_today(self, listing_id: int) -> bool:
+    def get_captured_today_listing_ids(self, listing_ids: list[int]) -> set[int]:
+        """Which of these listings already have a price_snapshots row for
+        today — one batched query up front for the whole run's listing set,
+        instead of a `listing_already_captured_today` round trip per
+        listing (was up to len(listings) sequential queries per run)."""
+        if not listing_ids:
+            return set()
         today = scrape_date_for_timezone(self.timezone_id)
         resp = (
             self.client.table("price_snapshots")
-            .select("id")
-            .eq("listing_id", listing_id)
+            .select("listing_id")
+            .in_("listing_id", listing_ids)
             .eq("scrape_date", today)
-            .limit(1)
             .execute()
         )
-        return len(resp.data) > 0
+        return {row["listing_id"] for row in resp.data}
 
     def upsert_snapshot(self, listing_id: int, scraped: ScrapedPrice) -> None:
         row = {
@@ -138,28 +143,36 @@ class SupabaseWriter:
             {"robots_checked_at": datetime.now(timezone.utc).isoformat()}
         ).eq("id", store_id).execute()
 
-    def get_category_id(self, ecoicop2_code: str) -> int:
+    def get_category_ids(self, ecoicop2_codes: list[str]) -> dict[str, int]:
+        """Batched replacement for calling get_category_id() once per
+        configured category — one query up front for the whole crawl's
+        category set, instead of a round trip per category."""
+        if not ecoicop2_codes:
+            return {}
         resp = (
             self.client.table("categories")
-            .select("id")
-            .eq("ecoicop2_code", ecoicop2_code)
-            .limit(1)
+            .select("id, ecoicop2_code")
+            .in_("ecoicop2_code", ecoicop2_codes)
             .execute()
         )
-        return resp.data[0]["id"]
+        return {row["ecoicop2_code"]: row["id"] for row in resp.data}
 
-    def category_already_captured_today(self, store_id: int, category_id: int) -> bool:
+    def get_captured_today_category_ids(self, store_id: int, category_ids: list[int]) -> set[int]:
+        """Batched replacement for calling category_already_captured_today()
+        once per category — one query up front instead of a round trip per
+        category."""
+        if not category_ids:
+            return set()
         today = scrape_date_for_timezone(self.timezone_id)
         resp = (
             self.client.table("category_observations")
-            .select("id")
+            .select("category_id")
             .eq("store_id", store_id)
-            .eq("category_id", category_id)
+            .in_("category_id", category_ids)
             .eq("scrape_date", today)
-            .limit(1)
             .execute()
         )
-        return len(resp.data) > 0
+        return {row["category_id"] for row in resp.data}
 
     def upsert_category_observation(
         self, store_id: int, category_id: int, stats: CategoryStats

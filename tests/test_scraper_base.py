@@ -30,6 +30,9 @@ class _FakeRobots:
     def __init__(self, disallowed_ids: frozenset = frozenset()):
         self._disallowed_ids = disallowed_ids
 
+    async def load(self):
+        return self
+
     def allowed(self, url: str) -> bool:
         return not any(url.endswith(f"/{lid}") for lid in self._disallowed_ids)
 
@@ -85,8 +88,8 @@ class _FakeDb:
     def get_active_listings(self, store_id):
         return self._listings
 
-    def listing_already_captured_today(self, listing_id):
-        return listing_id in self._already_captured_ids
+    def get_captured_today_listing_ids(self, listing_ids):
+        return {lid for lid in listing_ids if lid in self._already_captured_ids}
 
     def start_run(self, store_id, mode):
         if self._start_run_error:

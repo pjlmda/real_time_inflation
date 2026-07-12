@@ -19,7 +19,7 @@ import re
 
 from playwright.async_api import Page
 
-from scraper.antibot import RETRYABLE_STATUS, RetryableHttpError, detect_block
+from scraper.antibot import any_visible, detect_block, goto_checked, promotion_label_from_prices
 from scraper.base import BaseScraper
 from scraper.models import BlockDetected, FetchFailed, Listing, ScrapedPrice
 
@@ -44,13 +44,7 @@ UNIT_ABBREV_MAP = {"l": "L", "kg": "kg", "un": "un"}
 
 class PingoDoceScraper(BaseScraper):
     async def fetch_listing(self, page: Page, listing: Listing) -> ScrapedPrice:
-        response = await page.goto(listing.url, wait_until="domcontentloaded", timeout=30_000)
-        if response is not None and response.status in RETRYABLE_STATUS:
-            retry_after = None
-            header = response.headers.get("retry-after")
-            if header and header.isdigit():
-                retry_after = float(header)
-            raise RetryableHttpError(status=response.status, retry_after=retry_after)
+        await goto_checked(page, listing.url)
 
         html = await page.content()
         if detect_block(html):
@@ -83,10 +77,9 @@ class PingoDoceScraper(BaseScraper):
 
         promotion_label = None
         if is_promotion and regular_price > 0:
-            pct_off = round((1 - price / regular_price) * 100)
-            promotion_label = f"-{pct_off}%"
+            promotion_label = promotion_label_from_prices(price, regular_price)
 
-        out_of_stock = await self._any_visible(page, OUT_OF_STOCK_SELECTORS)
+        out_of_stock = await any_visible(page, OUT_OF_STOCK_SELECTORS)
 
         return ScrapedPrice(
             price=price,
@@ -102,13 +95,6 @@ class PingoDoceScraper(BaseScraper):
                 "unit_measure_text": unit_measure_text,
             },
         )
-
-    @staticmethod
-    async def _any_visible(page: Page, selectors: list[str]) -> bool:
-        for selector in selectors:
-            if await page.locator(selector).count() > 0:
-                return True
-        return False
 
 
 def parse_unit_measure(text: str, fallback_price: float) -> tuple[float, str]:

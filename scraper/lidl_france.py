@@ -30,7 +30,7 @@ import re
 
 from playwright.async_api import Page
 
-from scraper.antibot import RETRYABLE_STATUS, RetryableHttpError, detect_block
+from scraper.antibot import detect_block, goto_checked, promotion_label_from_prices
 from scraper.base import BaseScraper
 from scraper.models import BlockDetected, FetchFailed, Listing, ScrapedPrice
 
@@ -49,13 +49,7 @@ PER_KILO_MARKER = "le kilo"
 
 class LidlFranceScraper(BaseScraper):
     async def fetch_listing(self, page: Page, listing: Listing) -> ScrapedPrice:
-        response = await page.goto(listing.url, wait_until="domcontentloaded", timeout=30_000)
-        if response is not None and response.status in RETRYABLE_STATUS:
-            retry_after = None
-            header = response.headers.get("retry-after")
-            if header and header.isdigit():
-                retry_after = float(header)
-            raise RetryableHttpError(status=response.status, retry_after=retry_after)
+        await goto_checked(page, listing.url)
 
         # detect_block() against raw page.content() produced a real false
         # positive here, confirmed live: Lidl's Nuxt runtime config ships a
@@ -95,8 +89,7 @@ class LidlFranceScraper(BaseScraper):
 
         promotion_label = None
         if is_promotion and regular_price > 0:
-            pct_off = round((1 - price / regular_price) * 100)
-            promotion_label = f"-{pct_off}%"
+            promotion_label = promotion_label_from_prices(price, regular_price)
 
         footer_locator = page.locator(".ods-price__footer").first
         footer_text = (await footer_locator.inner_text()) if await footer_locator.count() > 0 else ""

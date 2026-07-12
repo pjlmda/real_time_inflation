@@ -1,7 +1,7 @@
 import pytest
 
 from metrics.category_compute import (
-    _write_index_and_rates,
+    build_index_rows,
     compute_category_avg_metrics_for_date,
     group_by_pair,
     relative_for_pair,
@@ -78,21 +78,14 @@ def test_compute_category_avg_metrics_for_date_returns_empty_when_no_observation
     assert result == []
 
 
-def test_write_index_and_rates_computes_ma7_and_inflation_rate_only_where_history_exists():
-    client = FakeSupabaseClient()
-    table = client.table("inflation_metrics")
-    # Same query-order contract as metrics/compute.py's sibling function: one
-    # recent-daily-history lookup, then one existing-index lookup per period.
-    table.select_results = [
-        [{"index_value": 99.0}, {"index_value": 100.0}],  # recent daily history
-        [{"index_value": 100.0}],  # existing index at t-1 (daily)
-        [],  # existing index at t-7 (weekly)
-        [],  # existing index at t-30 (monthly)
-        [],  # existing index at t-365 (yearly)
-    ]
+def test_build_index_rows_computes_ma7_and_inflation_rate_only_where_history_exists():
+    # Pure now — no client/DB involved (see metrics/compute.py's
+    # fetch_lookback_indices/fetch_recent_daily_map, reused here with
+    # index_family="category_avg" and always price_basis="effective").
+    lookback = {("daily", "overall", "ALL", "effective"): 100.0}
+    recent_daily = {("overall", "ALL", "effective"): [99.0, 100.0]}
 
-    written = _write_index_and_rates(
-        client,
+    rows = build_index_rows(
         as_of_date="2026-07-10",
         dimension="overall",
         dimension_value="ALL",
@@ -100,10 +93,12 @@ def test_write_index_and_rates_computes_ma7_and_inflation_rate_only_where_histor
         n_products=50,
         coverage=0.9,
         country="PT",
+        lookback=lookback,
+        recent_daily=recent_daily,
     )
 
-    assert [row["period"] for row in written] == ["daily", "weekly", "monthly", "yearly"]
-    daily, weekly, monthly, yearly = written
+    assert [row["period"] for row in rows] == ["daily", "weekly", "monthly", "yearly"]
+    daily, weekly, monthly, yearly = rows
 
     assert daily["index_value_ma7"] == pytest.approx(100.0)
     assert daily["inflation_rate"] == pytest.approx(1.0)
@@ -111,10 +106,8 @@ def test_write_index_and_rates_computes_ma7_and_inflation_rate_only_where_histor
     assert monthly["inflation_rate"] is None
     assert yearly["inflation_rate"] is None
 
-    upserts = [c for c in table.calls if c.op == "upsert"]
-    assert len(upserts) == 4
-    assert all(c.payload["index_family"] == "category_avg" for c in upserts)
-    assert all(c.payload["price_basis"] == "effective" for c in upserts)
-    assert all(c.payload["dimension"] == "overall" for c in upserts)
-    assert all(c.payload["dimension_value"] == "ALL" for c in upserts)
-    assert all(c.payload["country"] == "PT" for c in upserts)
+    assert all(row["index_family"] == "category_avg" for row in rows)
+    assert all(row["price_basis"] == "effective" for row in rows)
+    assert all(row["dimension"] == "overall" for row in rows)
+    assert all(row["dimension_value"] == "ALL" for row in rows)
+    assert all(row["country"] == "PT" for row in rows)

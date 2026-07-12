@@ -105,26 +105,60 @@ class SupabaseReader:
     # --- /health ---
 
     def get_health(self) -> dict:
+        active_slugs = ACTIVE_STORES_BY_COUNTRY.get(self.country, [])
         stores: dict[str, dict] = {}
         healthy = True
-        for slug in ACTIVE_STORES_BY_COUNTRY.get(self.country, []):
-            store_resp = self.client.table("stores").select("id").eq("slug", slug).limit(1).execute()
-            if not store_resp.data:
+
+        store_rows = (
+            self.client.table("stores").select("id, slug").in_("slug", active_slugs).execute().data
+            if active_slugs
+            else []
+        )
+        store_id_by_slug = {row["slug"]: row["id"] for row in store_rows}
+        store_ids = list(store_id_by_slug.values())
+
+        # One batched fetch of recent scrape_runs across every target store,
+        # instead of one query per (store, mode) — up to ~11 sequential round
+        # trips for a single /api/health call before this fix. Grouped below
+        # by taking the first (most recent, since desc-ordered) row per
+        # (store_id, mode), the same pattern get_products() already uses for
+        # latest price_snapshots. The limit is a fixed constant sized well
+        # above what STALE_AFTER_HOURS could ever need per store/mode — not a
+        # full-history scan (scrape_runs would otherwise grow unbounded the
+        # same way inflation_metrics does).
+        recent_runs = (
+            self.client.table("scrape_runs")
+            .select("store_id, mode, status, coverage, finished_at, blocked, started_at")
+            .in_("store_id", store_ids)
+            .order("started_at", desc=True)
+            .limit(200)
+            .execute()
+            .data
+            if store_ids
+            else []
+        )
+        latest_by_store_mode: dict[tuple[int, str], dict] = {}
+        for run in recent_runs:
+            latest_by_store_mode.setdefault((run["store_id"], run["mode"]), run)
+
+        for slug in active_slugs:
+            store_id = store_id_by_slug.get(slug)
+            if store_id is None:
                 continue
-            store_id = store_resp.data[0]["id"]
             modes = ("basket", "category") if slug in CATEGORY_CRAWL_STORES else ("basket",)
             per_mode: dict[str, dict | None] = {}
             for mode in modes:
-                resp = (
-                    self.client.table("scrape_runs")
-                    .select("status, coverage, finished_at, blocked")
-                    .eq("store_id", store_id)
-                    .eq("mode", mode)
-                    .order("started_at", desc=True)
-                    .limit(1)
-                    .execute()
+                run = latest_by_store_mode.get((store_id, mode))
+                row = (
+                    {
+                        "status": run["status"],
+                        "coverage": run["coverage"],
+                        "finished_at": run["finished_at"],
+                        "blocked": run["blocked"],
+                    }
+                    if run
+                    else None
                 )
-                row = resp.data[0] if resp.data else None
                 per_mode[mode] = row
                 if row is None or row["status"] == "failed" or (row["coverage"] or 0) < COVERAGE_ALERT_THRESHOLD:
                     healthy = False
@@ -250,21 +284,38 @@ class SupabaseReader:
         # basket-growth rounds, not all on day one) — surfaced per-category so
         # the "Index" column can be traced back to a concrete base date rather
         # than a single project-wide one.
-        base_dates_resp = (
-            self.client.table("inflation_metrics")
-            .select("dimension_value, as_of_date")
-            .eq("dimension", "category")
-            .eq("index_family", "fixed_basket")
-            .eq("price_basis", "headline")
-            .eq("period", "daily")
-            .eq("country", self.country)
-            .order("as_of_date")
-            .execute()
-            .data
-        )
+        #
+        # One small, indexed .limit(1) query per category rather than a
+        # single query over the whole table: the previous version fetched
+        # every historical daily row for every category just to find each
+        # one's earliest date, so it grew without bound as history accrued
+        # (this project is explicitly built to run for years — see
+        # CLAUDE.md's "History accrues from day 1"). A base date never
+        # changes once set, and category count is small and grows only on
+        # rare basket-growth rounds, so N bounded queries here scale far
+        # better over time than one query whose size is
+        # categories x days-of-history-so-far. (Supabase's PostgREST doesn't
+        # have aggregate functions enabled on this project — confirmed live —
+        # so a single server-side MIN()-per-category query isn't available
+        # without a schema migration.)
         base_date_by_code: dict[str, str] = {}
-        for row in base_dates_resp:
-            base_date_by_code.setdefault(row["dimension_value"], row["as_of_date"])
+        for cat in categories:
+            resp = (
+                self.client.table("inflation_metrics")
+                .select("as_of_date")
+                .eq("dimension_value", cat["ecoicop2_code"])
+                .eq("dimension", "category")
+                .eq("index_family", "fixed_basket")
+                .eq("price_basis", "headline")
+                .eq("period", "daily")
+                .eq("country", self.country)
+                .order("as_of_date")
+                .limit(1)
+                .execute()
+                .data
+            )
+            if resp:
+                base_date_by_code[cat["ecoicop2_code"]] = resp[0]["as_of_date"]
 
         return [
             {
@@ -333,25 +384,42 @@ class SupabaseReader:
                 _shape_metric_row(row)
             )
 
+        # One batched fetch of recent basket scrape_runs across every store,
+        # instead of one query per store — see get_health()'s identical fix
+        # just above for the same reasoning (bounded constant limit, not a
+        # full-history scan).
+        store_ids = [store["id"] for store in stores]
+        recent_runs = (
+            self.client.table("scrape_runs")
+            .select("store_id, status, coverage, finished_at, started_at")
+            .in_("store_id", store_ids)
+            .eq("mode", "basket")
+            .order("started_at", desc=True)
+            .limit(100)
+            .execute()
+            .data
+            if store_ids
+            else []
+        )
+        latest_run_by_store: dict[int, dict] = {}
+        for run in recent_runs:
+            latest_run_by_store.setdefault(run["store_id"], run)
+
         result = []
         for store in stores:
             slug = store["slug"]
-            latest_run = (
-                self.client.table("scrape_runs")
-                .select("status, coverage, finished_at")
-                .eq("store_id", store["id"])
-                .eq("mode", "basket")
-                .order("started_at", desc=True)
-                .limit(1)
-                .execute()
-                .data
+            run = latest_run_by_store.get(store["id"])
+            last_scrape = (
+                {"status": run["status"], "coverage": run["coverage"], "finished_at": run["finished_at"]}
+                if run
+                else None
             )
             result.append(
                 {
                     "slug": slug,
                     "name": store["name"],
                     "latest": by_slug.get(slug, {}),
-                    "last_scrape": latest_run[0] if latest_run else None,
+                    "last_scrape": last_scrape,
                 }
             )
         return result

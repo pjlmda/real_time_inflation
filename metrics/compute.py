@@ -137,54 +137,71 @@ def class_relatives(
     return by_category, n_covered
 
 
-def _existing_index(
-    client, as_of_date: str, period: str, dimension: str, dimension_value: str, price_basis: str, country: str
-) -> float | None:
-    target_date = (date.fromisoformat(as_of_date) - timedelta(days=PERIOD_LOOKBACK_DAYS[period])).isoformat()
+def fetch_lookback_indices(
+    client, as_of_date: str, country: str, index_family: str = "fixed_basket"
+) -> dict[tuple[str, str, str, str], float]:
+    """One batched read replacing what used to be one query per
+    (scope, period) — up to hundreds of round trips per compute run. Each
+    period's lookback date (as_of_date - N days) is the same across every
+    scope, so a single `as_of_date IN (...)` query covers every
+    period/dimension/dimension_value/price_basis combination for this
+    country+family in one round trip. Safe to precompute before any writes
+    this run makes: every target_date is strictly before as_of_date, so this
+    can never see a row this same run is about to write.
+    Keyed by (period, dimension, dimension_value, price_basis)."""
+    target_dates = {
+        period: (date.fromisoformat(as_of_date) - timedelta(days=days)).isoformat()
+        for period, days in PERIOD_LOOKBACK_DAYS.items()
+    }
+    date_to_period = {v: k for k, v in target_dates.items()}
     resp = (
         client.table("inflation_metrics")
-        .select("index_value")
-        .eq("as_of_date", target_date)
-        .eq("index_family", "fixed_basket")
-        .eq("period", period)
-        .eq("dimension", dimension)
-        .eq("dimension_value", dimension_value)
-        .eq("price_basis", price_basis)
+        .select("as_of_date, dimension, dimension_value, price_basis, index_value")
+        .eq("index_family", index_family)
         .eq("country", country)
-        .limit(1)
+        .in_("as_of_date", list(date_to_period))
         .execute()
     )
-    return float(resp.data[0]["index_value"]) if resp.data else None
+    lookback: dict[tuple[str, str, str, str], float] = {}
+    for row in resp.data:
+        period = date_to_period.get(row["as_of_date"])
+        if period is None:
+            continue
+        key = (period, row["dimension"], row["dimension_value"], row["price_basis"])
+        lookback[key] = float(row["index_value"])
+    return lookback
 
 
-def _recent_daily_indices(
-    client, as_of_date: str, dimension: str, dimension_value: str, price_basis: str, country: str, days: int = 6
-) -> list[float]:
-    """Prior `days` days of this scope's raw daily index_value (already
-    persisted from previous runs) — used to build an expanding-then-7-day
-    moving average for today's headline (spec §6: "raw daily is noisy from
-    rounding/promos")."""
+def fetch_recent_daily_map(
+    client, as_of_date: str, country: str, index_family: str = "fixed_basket", days: int = 6
+) -> dict[tuple[str, str, str], list[float]]:
+    """One batched read replacing what used to be one query per scope — the
+    prior `days` days of every scope's raw daily index_value, fetched once
+    per country+family instead of once per
+    (dimension, dimension_value, price_basis) (spec §6: "raw daily is noisy
+    from rounding/promos", the input to the 7-day moving average).
+    Keyed by (dimension, dimension_value, price_basis)."""
     start_date = (date.fromisoformat(as_of_date) - timedelta(days=days)).isoformat()
     end_date = (date.fromisoformat(as_of_date) - timedelta(days=1)).isoformat()
     resp = (
         client.table("inflation_metrics")
-        .select("index_value")
-        .eq("index_family", "fixed_basket")
+        .select("dimension, dimension_value, price_basis, index_value")
+        .eq("index_family", index_family)
         .eq("period", "daily")
-        .eq("dimension", dimension)
-        .eq("dimension_value", dimension_value)
-        .eq("price_basis", price_basis)
         .eq("country", country)
         .gte("as_of_date", start_date)
         .lte("as_of_date", end_date)
         .order("as_of_date")
         .execute()
     )
-    return [float(r["index_value"]) for r in resp.data]
+    recent: dict[tuple[str, str, str], list[float]] = {}
+    for row in resp.data:
+        key = (row["dimension"], row["dimension_value"], row["price_basis"])
+        recent.setdefault(key, []).append(float(row["index_value"]))
+    return recent
 
 
-def _write_index_and_rates(
-    client,
+def build_index_rows(
     as_of_date: str,
     dimension: str,
     dimension_value: str,
@@ -193,8 +210,14 @@ def _write_index_and_rates(
     n_products: int,
     coverage: float,
     country: str,
+    lookback: dict[tuple[str, str, str, str], float],
+    recent_daily: dict[tuple[str, str, str], list[float]],
 ) -> list[dict]:
-    written = []
+    """Pure: builds this scope's 4 period rows (daily/weekly/monthly/yearly)
+    from precomputed lookback/recent-daily maps instead of querying per
+    period (see fetch_lookback_indices/fetch_recent_daily_map) — no DB
+    access here. The caller batches every scope's rows into one upsert."""
+    rows = []
     for period in PERIOD_LOOKBACK_DAYS:
         row = {
             "as_of_date": as_of_date,
@@ -211,30 +234,29 @@ def _write_index_and_rates(
             "country": country,
         }
         if period == "daily":
-            history = _recent_daily_indices(client, as_of_date, dimension, dimension_value, price_basis, country)
+            history = recent_daily.get((dimension, dimension_value, price_basis), [])
             row["index_value_ma7"] = round(moving_average(history + [index_value]), 4)
-        past_index = _existing_index(client, as_of_date, period, dimension, dimension_value, price_basis, country)
+        past_index = lookback.get((period, dimension, dimension_value, price_basis))
         if past_index is not None:
             row["inflation_rate"] = round(inflation_rate(index_value, past_index), 4)
-        client.table("inflation_metrics").upsert(
-            row, on_conflict="as_of_date,index_family,period,dimension,dimension_value,price_basis,country"
-        ).execute()
-        written.append(row)
-    return written
+        rows.append(row)
+    return rows
 
 
 def _compute_scope(
-    client, as_of_date: str, basket_rows: list[dict]
+    as_of_date: str, basket_rows: list[dict], snapshots_by_listing: dict[int, list[dict]]
 ) -> Iterator[tuple[str, dict[str, list[tuple[float, float]]], int, float]]:
-    """Computes per-category relatives for one scope's basket_rows. Returns
-    the inputs needed for both the 'category' rows and the weighted
-    combination (caller decides whether to label the combination 'overall'
-    or 'store', and supplies the country-scoped hicp_weight lookup)."""
+    """Computes per-category relatives for one scope's basket_rows, given an
+    already-fetched snapshots map (see compute_metrics_for_date — snapshots
+    are fetched once per country, covering every store's listings, and
+    reused for every per-store scope instead of being re-fetched per store
+    for what's always a subset of the same listings). Returns the inputs
+    needed for both the 'category' rows and the weighted combination (caller
+    decides whether to label the combination 'overall' or 'store', and
+    supplies the country-scoped hicp_weight lookup)."""
     listing_ids = [r["id"] for r in basket_rows]
-    snapshots = fetch_snapshots_by_listing(client, listing_ids)
-
     for price_basis, price_field in PRICE_BASES:
-        by_category, n_covered = class_relatives(basket_rows, snapshots, as_of_date, price_field)
+        by_category, n_covered = class_relatives(basket_rows, snapshots_by_listing, as_of_date, price_field)
         coverage = n_covered / len(listing_ids) if listing_ids else 0.0
         yield price_basis, by_category, n_covered, coverage
 
@@ -248,19 +270,27 @@ def compute_metrics_for_date(client, as_of_date: str) -> list[dict]:
 
     for country, country_stores in stores_by_country.items():
         hicp_weight = fetch_category_weights(client, country)
+        lookback = fetch_lookback_indices(client, as_of_date, country)
+        recent_daily = fetch_recent_daily_map(client, as_of_date, country)
+        country_rows: list[dict] = []
 
         # --- overall (all stores in this country) + per-category (across this country's stores) ---
         overall_rows = fetch_basket_rows(client, [s["id"] for s in country_stores])
+        snapshots_by_listing = fetch_snapshots_by_listing(client, [r["id"] for r in overall_rows])
+        overall_rows_by_store: dict[int, list[dict]] = {}
+        for row in overall_rows:
+            overall_rows_by_store.setdefault(row["store_id"], []).append(row)
+
         for price_basis, by_category, n_covered, coverage in _compute_scope(
-            client, as_of_date, overall_rows
+            as_of_date, overall_rows, snapshots_by_listing
         ):
             class_indices: dict[str, float] = {}
             for code, relatives_and_weights in by_category.items():
                 index = jevons_class_index(relatives_and_weights)
                 class_indices[code] = index
-                written += _write_index_and_rates(
-                    client, as_of_date, "category", code, price_basis,
-                    index, len(relatives_and_weights), coverage, country,
+                country_rows += build_index_rows(
+                    as_of_date, "category", code, price_basis, index,
+                    len(relatives_and_weights), coverage, country, lookback, recent_daily,
                 )
 
             overall_pairs = [
@@ -268,18 +298,18 @@ def compute_metrics_for_date(client, as_of_date: str) -> list[dict]:
             ]
             if overall_pairs:
                 overall_index = weighted_overall_index(overall_pairs)
-                written += _write_index_and_rates(
-                    client, as_of_date, "overall", "ALL", price_basis,
-                    overall_index, n_covered, coverage, country,
+                country_rows += build_index_rows(
+                    as_of_date, "overall", "ALL", price_basis, overall_index,
+                    n_covered, coverage, country, lookback, recent_daily,
                 )
 
         # --- per-store (combined across that store's own categories) ---
         for store in country_stores:
-            store_rows = fetch_basket_rows(client, [store["id"]])
+            store_rows = overall_rows_by_store.get(store["id"], [])
             if not store_rows:
                 continue
             for price_basis, by_category, n_covered, coverage in _compute_scope(
-                client, as_of_date, store_rows
+                as_of_date, store_rows, snapshots_by_listing
             ):
                 class_indices = {code: jevons_class_index(rw) for code, rw in by_category.items()}
                 store_pairs = [
@@ -287,10 +317,17 @@ def compute_metrics_for_date(client, as_of_date: str) -> list[dict]:
                 ]
                 if store_pairs:
                     store_index = weighted_overall_index(store_pairs)
-                    written += _write_index_and_rates(
-                        client, as_of_date, "store", store["slug"], price_basis,
-                        store_index, n_covered, coverage, country,
+                    country_rows += build_index_rows(
+                        as_of_date, "store", store["slug"], price_basis, store_index,
+                        n_covered, coverage, country, lookback, recent_daily,
                     )
+
+        if country_rows:
+            client.table("inflation_metrics").upsert(
+                country_rows,
+                on_conflict="as_of_date,index_family,period,dimension,dimension_value,price_basis,country",
+            ).execute()
+        written += country_rows
 
     return written
 

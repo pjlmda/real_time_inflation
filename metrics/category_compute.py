@@ -46,7 +46,7 @@ import os
 from collections import defaultdict
 from datetime import date, timedelta
 
-from metrics.compute import fetch_category_weights
+from metrics.compute import fetch_category_weights, fetch_lookback_indices, fetch_recent_daily_map
 from metrics.formulas import inflation_rate, moving_average, weighted_overall_index
 
 PERIOD_LOOKBACK_DAYS = {"daily": 1, "weekly": 7, "monthly": 30, "yearly": 365}
@@ -93,53 +93,7 @@ def relative_for_pair(pair_rows: list[dict], as_of_date: str) -> tuple[float, in
     return relative, int(today_row["n_products"] or 0)
 
 
-def _existing_index(
-    client, as_of_date: str, period: str, dimension: str, dimension_value: str, country: str
-) -> float | None:
-    target_date = (date.fromisoformat(as_of_date) - timedelta(days=PERIOD_LOOKBACK_DAYS[period])).isoformat()
-    resp = (
-        client.table("inflation_metrics")
-        .select("index_value")
-        .eq("as_of_date", target_date)
-        .eq("index_family", "category_avg")
-        .eq("period", period)
-        .eq("dimension", dimension)
-        .eq("dimension_value", dimension_value)
-        .eq("price_basis", "effective")
-        .eq("country", country)
-        .limit(1)
-        .execute()
-    )
-    return float(resp.data[0]["index_value"]) if resp.data else None
-
-
-def _recent_daily_indices(
-    client, as_of_date: str, dimension: str, dimension_value: str, country: str, days: int = 6
-) -> list[float]:
-    """Prior `days` days of this scope's raw daily index_value — same
-    expanding-then-7-day moving-average building block used by
-    metrics/compute.py's fixed-basket family."""
-    start_date = (date.fromisoformat(as_of_date) - timedelta(days=days)).isoformat()
-    end_date = (date.fromisoformat(as_of_date) - timedelta(days=1)).isoformat()
-    resp = (
-        client.table("inflation_metrics")
-        .select("index_value")
-        .eq("index_family", "category_avg")
-        .eq("period", "daily")
-        .eq("dimension", dimension)
-        .eq("dimension_value", dimension_value)
-        .eq("price_basis", "effective")
-        .eq("country", country)
-        .gte("as_of_date", start_date)
-        .lte("as_of_date", end_date)
-        .order("as_of_date")
-        .execute()
-    )
-    return [float(r["index_value"]) for r in resp.data]
-
-
-def _write_index_and_rates(
-    client,
+def build_index_rows(
     as_of_date: str,
     dimension: str,
     dimension_value: str,
@@ -147,8 +101,16 @@ def _write_index_and_rates(
     n_products: int,
     coverage: float,
     country: str,
+    lookback: dict[tuple[str, str, str, str], float],
+    recent_daily: dict[tuple[str, str, str], list[float]],
 ) -> list[dict]:
-    written = []
+    """Pure: builds this scope's 4 period rows from precomputed
+    lookback/recent-daily maps (see metrics.compute.fetch_lookback_indices /
+    fetch_recent_daily_map, reused here with index_family='category_avg') —
+    no DB access here. The caller batches every scope's rows into one
+    upsert, instead of the one-query-per-(scope, period) pattern this used
+    to run (same fix as metrics/compute.py's fixed-basket family)."""
+    rows = []
     for period in PERIOD_LOOKBACK_DAYS:
         row = {
             "as_of_date": as_of_date,
@@ -165,16 +127,13 @@ def _write_index_and_rates(
             "country": country,
         }
         if period == "daily":
-            history = _recent_daily_indices(client, as_of_date, dimension, dimension_value, country)
+            history = recent_daily.get((dimension, dimension_value, "effective"), [])
             row["index_value_ma7"] = round(moving_average(history + [index_value]), 4)
-        past_index = _existing_index(client, as_of_date, period, dimension, dimension_value, country)
+        past_index = lookback.get((period, dimension, dimension_value, "effective"))
         if past_index is not None:
             row["inflation_rate"] = round(inflation_rate(index_value, past_index), 4)
-        client.table("inflation_metrics").upsert(
-            row, on_conflict="as_of_date,index_family,period,dimension,dimension_value,price_basis,country"
-        ).execute()
-        written.append(row)
-    return written
+        rows.append(row)
+    return rows
 
 
 def compute_category_avg_metrics_for_date(client, as_of_date: str) -> list[dict]:
@@ -190,6 +149,9 @@ def compute_category_avg_metrics_for_date(client, as_of_date: str) -> list[dict]
             continue
 
         hicp_weight = fetch_category_weights(client, country)
+        lookback = fetch_lookback_indices(client, as_of_date, country, index_family="category_avg")
+        recent_daily = fetch_recent_daily_map(client, as_of_date, country, index_family="category_avg")
+        country_rows: list[dict] = []
         grouped = group_by_pair(rows)
         n_total_pairs = len(grouped)
         n_covered_pairs = 0
@@ -221,8 +183,8 @@ def compute_category_avg_metrics_for_date(client, as_of_date: str) -> list[dict]
             index_value = weighted_overall_index(pairs)
             class_indices[code] = index_value
             n_products_total = int(sum(w for _, w in pairs))
-            written += _write_index_and_rates(
-                client, as_of_date, "category", code, index_value, n_products_total, coverage, country
+            country_rows += build_index_rows(
+                as_of_date, "category", code, index_value, n_products_total, coverage, country, lookback, recent_daily
             )
 
         # --- dimension='overall' ---
@@ -232,8 +194,8 @@ def compute_category_avg_metrics_for_date(client, as_of_date: str) -> list[dict]
         if overall_pairs:
             overall_index = weighted_overall_index(overall_pairs)
             n_products_total = sum(int(sum(w for _, w in per_category[code])) for code in class_indices)
-            written += _write_index_and_rates(
-                client, as_of_date, "overall", "ALL", overall_index, n_products_total, coverage, country
+            country_rows += build_index_rows(
+                as_of_date, "overall", "ALL", overall_index, n_products_total, coverage, country, lookback, recent_daily
             )
 
         # --- dimension='store' (that store's own categories only, not cross-store blended) ---
@@ -243,9 +205,16 @@ def compute_category_avg_metrics_for_date(client, as_of_date: str) -> list[dict]
             ]
             if store_pairs:
                 store_index = weighted_overall_index(store_pairs)
-                written += _write_index_and_rates(
-                    client, as_of_date, "store", slug, store_index, len(code_indices), coverage, country
+                country_rows += build_index_rows(
+                    as_of_date, "store", slug, store_index, len(code_indices), coverage, country, lookback, recent_daily
                 )
+
+        if country_rows:
+            client.table("inflation_metrics").upsert(
+                country_rows,
+                on_conflict="as_of_date,index_family,period,dimension,dimension_value,price_basis,country",
+            ).execute()
+        written += country_rows
 
     return written
 

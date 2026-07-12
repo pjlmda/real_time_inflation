@@ -1,11 +1,13 @@
 import pytest
 
 from metrics.compute import (
-    _write_index_and_rates,
     base_and_current_price,
+    build_index_rows,
     class_relatives,
     fetch_basket_rows,
     fetch_category_weights,
+    fetch_lookback_indices,
+    fetch_recent_daily_map,
 )
 from tests.fake_supabase import FakeSupabaseClient
 
@@ -182,22 +184,67 @@ def test_fetch_category_weights_keyed_by_code_scoped_to_country():
     assert ("eq", "country", "PT") in call.filters
 
 
-def test_write_index_and_rates_computes_ma7_and_inflation_rate_only_where_history_exists():
+def test_fetch_lookback_indices_maps_rows_to_period_via_target_date():
+    # One batched query replaces what used to be one _existing_index query
+    # per (scope, period) — each row's period is recovered from which of the
+    # 4 lookback target dates (as_of_date minus that period's lookback days)
+    # its as_of_date matches.
     client = FakeSupabaseClient()
-    table = client.table("inflation_metrics")
-    # Order matches the code's exact query sequence: recent-daily-history once,
-    # then one existing-index-at-lookback lookup per period (daily, weekly,
-    # monthly, yearly, in that order).
-    table.select_results = [
-        [{"index_value": 98.0}, {"index_value": 100.0}],  # recent daily history
-        [{"index_value": 100.0}],  # existing index at t-1 (daily)
-        [],  # existing index at t-7 (weekly) — no history yet
-        [],  # existing index at t-30 (monthly)
-        [],  # existing index at t-365 (yearly)
-    ]
+    client.table("inflation_metrics").select_results.append(
+        [
+            {
+                "as_of_date": "2026-07-09",  # 2026-07-10 minus 1 day -> daily
+                "dimension": "category",
+                "dimension_value": "01.1.1.1",
+                "price_basis": "headline",
+                "index_value": 100.0,
+            },
+            {
+                "as_of_date": "2026-07-03",  # minus 7 days -> weekly
+                "dimension": "category",
+                "dimension_value": "01.1.1.1",
+                "price_basis": "headline",
+                "index_value": 95.0,
+            },
+        ]
+    )
 
-    written = _write_index_and_rates(
-        client,
+    lookback = fetch_lookback_indices(client, "2026-07-10", "PT")
+
+    assert lookback[("daily", "category", "01.1.1.1", "headline")] == pytest.approx(100.0)
+    assert lookback[("weekly", "category", "01.1.1.1", "headline")] == pytest.approx(95.0)
+    call = client.tables["inflation_metrics"].calls[0]
+    assert ("eq", "country", "PT") in call.filters
+    assert ("eq", "index_family", "fixed_basket") in call.filters
+    in_filter = next(f for f in call.filters if f[0] == "in")
+    assert set(in_filter[2]) == {"2026-07-09", "2026-07-03", "2026-06-10", "2025-07-10"}
+
+
+def test_fetch_recent_daily_map_groups_by_scope_key():
+    client = FakeSupabaseClient()
+    client.table("inflation_metrics").select_results.append(
+        [
+            {"dimension": "category", "dimension_value": "01.1.1.1", "price_basis": "headline", "index_value": 98.0},
+            {"dimension": "category", "dimension_value": "01.1.1.1", "price_basis": "headline", "index_value": 100.0},
+        ]
+    )
+
+    recent = fetch_recent_daily_map(client, "2026-07-10", "PT")
+
+    assert recent[("category", "01.1.1.1", "headline")] == [98.0, 100.0]
+    call = client.tables["inflation_metrics"].calls[0]
+    assert ("eq", "period", "daily") in call.filters
+    assert ("gte", "as_of_date", "2026-07-04") in call.filters
+    assert ("lte", "as_of_date", "2026-07-09") in call.filters
+
+
+def test_build_index_rows_computes_ma7_and_inflation_rate_only_where_history_exists():
+    # No client/DB involved now — build_index_rows is pure, fed by
+    # fetch_lookback_indices/fetch_recent_daily_map's precomputed maps.
+    lookback = {("daily", "category", "01.1.1.1", "headline"): 100.0}
+    recent_daily = {("category", "01.1.1.1", "headline"): [98.0, 100.0]}
+
+    rows = build_index_rows(
         as_of_date="2026-07-10",
         dimension="category",
         dimension_value="01.1.1.1",
@@ -206,10 +253,12 @@ def test_write_index_and_rates_computes_ma7_and_inflation_rate_only_where_histor
         n_products=4,
         coverage=1.0,
         country="PT",
+        lookback=lookback,
+        recent_daily=recent_daily,
     )
 
-    assert [row["period"] for row in written] == ["daily", "weekly", "monthly", "yearly"]
-    daily, weekly, monthly, yearly = written
+    assert [row["period"] for row in rows] == ["daily", "weekly", "monthly", "yearly"]
+    daily, weekly, monthly, yearly = rows
 
     assert daily["index_value_ma7"] == pytest.approx(100.0)
     assert daily["inflation_rate"] == pytest.approx(2.0)
@@ -218,12 +267,10 @@ def test_write_index_and_rates_computes_ma7_and_inflation_rate_only_where_histor
     assert monthly["inflation_rate"] is None
     assert yearly["inflation_rate"] is None
 
-    upserts = [c for c in table.calls if c.op == "upsert"]
-    assert len(upserts) == 4
-    assert all(c.payload["index_family"] == "fixed_basket" for c in upserts)
-    assert all(c.payload["dimension"] == "category" for c in upserts)
-    assert all(c.payload["dimension_value"] == "01.1.1.1" for c in upserts)
-    assert all(c.payload["price_basis"] == "headline" for c in upserts)
-    assert all(c.payload["index_value"] == pytest.approx(102.0) for c in upserts)
-    assert all(c.payload["coverage"] == pytest.approx(1.0) for c in upserts)
-    assert all(c.payload["country"] == "PT" for c in upserts)
+    assert all(row["index_family"] == "fixed_basket" for row in rows)
+    assert all(row["dimension"] == "category" for row in rows)
+    assert all(row["dimension_value"] == "01.1.1.1" for row in rows)
+    assert all(row["price_basis"] == "headline" for row in rows)
+    assert all(row["index_value"] == pytest.approx(102.0) for row in rows)
+    assert all(row["coverage"] == pytest.approx(1.0) for row in rows)
+    assert all(row["country"] == "PT" for row in rows)

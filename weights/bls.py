@@ -96,6 +96,17 @@ BLS_ITEM_TO_ECOICOP_EXTRA_TARGETS: dict[str, list[str]] = {
 
 PERCENT_TO_PERMILLE = 10  # BLS's Relative Importance (0-100 scale) -> this project's per-mille convention (0-1000, matching Eurostat's hicp_weight)
 
+# 'CU' survey (CPI) + 'UR' not-seasonally-adjusted + '0000' US city average -
+# BLS's actual series IDs need this prefix; the bare item codes in
+# BLS_ITEM_TO_ECOICOP (e.g. "SEFA03") are BLS's own item-code convention,
+# not valid series IDs on their own. Confirmed live 2026-07-12: requesting
+# bare item codes gets "Invalid Series" for every one of them with no
+# further error detail - a real bug (this project's own request never
+# included the prefix, even though parse_response() below already expected
+# to strip it back off the *response*, which only makes sense if the
+# request had included it in the first place).
+SERIES_ID_PREFIX = "CUUR0000"
+
 
 class BlsRequestFailed(Exception):
     """The BLS API responded but declined to process the request (e.g. the
@@ -109,18 +120,30 @@ class BlsRequestFailed(Exception):
 def fetch_weights(*, timeout: float = 30.0) -> list[WeightRecord]:
     """One batched POST for every mapped BLS item (well under the API's
     50-series-per-request limit), `aspects: true` to get each series'
-    current Relative Importance alongside its index value."""
-    series_ids = list(BLS_ITEM_TO_ECOICOP.keys())
+    current Relative Importance alongside its index value.
+
+    Unauthenticated requests (no `BLS_API_KEY`) share a 25-request/day pool
+    that this project hit repeatedly during research — a registered key
+    (free, https://www.bls.gov/developers/) raises that to 500/day. Sent as
+    `registrationkey` in the request body per BLS API v2; omitted entirely
+    when unset, which BLS treats as an anonymous request."""
+    series_ids = [f"{SERIES_ID_PREFIX}{code}" for code in BLS_ITEM_TO_ECOICOP]
+    request_body: dict = {"seriesid": series_ids, "aspects": True}
+    api_key = os.environ.get("BLS_API_KEY")
+    if api_key:
+        request_body["registrationkey"] = api_key
     resp = httpx.post(
         BLS_API_URL,
-        json={"seriesid": series_ids, "aspects": True},
+        json=request_body,
         timeout=timeout,
     )
     resp.raise_for_status()
-    payload = resp.json()
-    if payload.get("status") != "REQUEST_SUCCEEDED":
-        raise BlsRequestFailed(f"BLS API declined the request: {payload.get('message') or payload.get('status')}")
-    return parse_response(payload)
+    response_data = resp.json()
+    if response_data.get("status") != "REQUEST_SUCCEEDED":
+        raise BlsRequestFailed(
+            f"BLS API declined the request: {response_data.get('message') or response_data.get('status')}"
+        )
+    return parse_response(response_data)
 
 
 def parse_response(raw: dict) -> list[WeightRecord]:
@@ -132,9 +155,7 @@ def parse_response(raw: dict) -> list[WeightRecord]:
     records: list[WeightRecord] = []
     for series in raw.get("Results", {}).get("series", []):
         series_id = series.get("seriesID", "")
-        # CUUR0000<item_code> -> strip the 8-char fixed prefix ('CU' survey
-        # + 'UR' not-seasonally-adjusted/periodicity + '0000' US city average).
-        item_code = series_id[8:] if len(series_id) > 8 else series_id
+        item_code = series_id[len(SERIES_ID_PREFIX):] if series_id.startswith(SERIES_ID_PREFIX) else series_id
 
         data_points = series.get("data", [])
         if not data_points:

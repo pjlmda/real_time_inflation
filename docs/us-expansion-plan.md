@@ -10,11 +10,17 @@ four locations (see §6, §8, §9), and `weights/bls.py` was built (§7).
 **Merged to `main` 2026-07-11** (fast-forward from the `research/us-
 expansion` branch, which incubated all of this work) **and added to
 `scrape.yml`'s scheduled matrix the same day** — all four locations now
-scrape twice daily alongside every other store. `category_weights` still
-has no US rows (the BLS API's daily quota was exhausted by this session's
-research before a full sync could run — needs a re-run once it resets),
-so no `inflation_metrics` exist for the US yet; this covers `price_snapshots`
-only so far.
+scrape twice daily alongside every other store. **Done, 2026-07-12**:
+`weights/bls.py` had a real, separate bug beyond the quota exhaustion this
+doc originally flagged — it POSTed bare BLS item codes (e.g. `SEFA03`) as
+series IDs instead of the full `CUUR0000SEFA03` form BLS's API actually
+requires, so even an unrejected request returned "Invalid Series" for
+every mapped item. Fixed once a user-registered `BLS_API_KEY` (500
+req/day vs. 25 unregistered) was available to test against; `category_weights`
+now has 14 real US rows, `inflation_metrics` has real `overall`/`store`
+dimension rows computed from them, and the country switcher on the live
+dashboard picks the US up automatically (`get_available_countries()`
+gates on a real `overall` row existing).
 
 **Bottom line up front (updated after a second research pass, same day)**:
 **Wegmans is a real, live-confirmed, unblocked lead** — not bot-blocked
@@ -375,13 +381,16 @@ has the complete provenance/verification notes per BLS item code; summary:
   parameter, defaulting to the existing Eurostat value so every existing
   caller's behavior is unchanged.
 - **Tested via fixtures** (`tests/test_bls.py`, 5 tests; mirrors
-  `tests/test_eurostat.py`'s established pattern), not yet via a full
-  successful live `python -m weights.bls` run — the API's daily quota was
-  already exhausted by the time this module was ready to run for real, so
-  `category_weights` has **no US rows yet**. Needs a re-run once the quota
-  resets (BLS's daily limits reset on a rolling/calendar-day basis) before
-  US `inflation_metrics` can be computed at all — this is the concrete,
-  well-scoped next step, not an open unknown.
+  `tests/test_eurostat.py`'s established pattern) from day one, but the
+  first real live `python -m weights.bls` run (2026-07-12, once quota
+  allowed it) surfaced a genuine bug the fixtures hadn't caught: the
+  request sent bare BLS item codes (`SEFA03`) as series IDs, when BLS's API
+  actually requires the full `CUUR0000SEFA03` form — every mapped item came
+  back "Invalid Series" even on a request BLS otherwise accepted. Fixed in
+  `fetch_weights()` (a `SERIES_ID_PREFIX` constant now builds the real
+  series ID for the request; `parse_response()`'s existing prefix-stripping
+  logic was already correct, since it only makes sense once the request
+  itself includes that prefix). `category_weights` now has 14 real US rows.
 
 ## 8. Build status — multi-location rebuild, 2026-07-11
 
@@ -482,6 +491,31 @@ France's stores — no dynamic category-crawl scraper exists for Wegmans
 either, only the fixed-basket one). They now scrape on the same twice-
 daily cron as every other store (`0 6 * * *` / `0 10 * * *` UTC), with the
 same idempotent same-day-retry behavior.
+
+## 10. Weights synced, US live on the dashboard — 2026-07-12
+
+A user-registered `BLS_API_KEY` (free, https://www.bls.gov/developers/,
+500 req/day vs. 25 unregistered) unblocked a real `python -m weights.bls`
+run, which surfaced and let us fix the series-ID bug described in §7 —
+`category_weights` now has 14 real US rows (per-mille scale, e.g. beef/veal
+6.41, personal care 6.73). `metrics.compute`/`metrics.category_compute`
+were re-run for 2026-07-11 and 2026-07-12 (manually, once via
+`AskUserQuestion` confirmation each — this project's compute jobs only
+process "today" automatically, they don't backfill a missed day on their
+own) to produce real `overall`/`store` dimension rows from those weights;
+the US now shows a real headline index (99.90, -0.10% daily as of
+2026-07-12) and appears in the live dashboard's country switcher
+automatically, since `web/api/db.py:get_available_countries()` gates on a
+real `overall` row existing per country, not just any row.
+
+Along the way, fixing France's own similar metrics gap (see
+docs/system-overview.md) surfaced a second, unrelated bug in
+`get_available_countries()` itself: it fetched every `inflation_metrics`
+row unfiltered to find distinct countries, which silently returned only
+Portugal once PT's own accumulated history passed PostgREST's default
+1000-row cap — France had disappeared from the switcher entirely, not
+just the still-pending US. Fixed with one bounded `.limit(1)` query per
+known country instead.
 
 Not yet done: `category_weights` has no US rows (BLS quota pending reset —
 see §7), so `compute.yml`'s `metrics/compute.py` run will produce

@@ -90,17 +90,34 @@ class SupabaseReader:
     # --- /countries ---
 
     def get_available_countries(self) -> list[dict]:
-        # Only countries with real inflation_metrics rows are offered in the
-        # switcher — US is seeded/scraped but has none yet (weights sync
-        # still pending), so it stays absent here until that actually lands,
-        # rather than showing a country that would render an empty dashboard.
-        rows = self.client.table("inflation_metrics").select("country").execute().data
-        present = {row["country"] for row in rows}
-        return [
-            {"code": code, "name": info["name"], "currency": info["currency"]}
-            for code, info in COUNTRY_INFO.items()
-            if code in present
-        ]
+        # Only countries with a real 'overall' inflation_metrics row are
+        # offered in the switcher — that's the dimension the dashboard's
+        # headline number actually depends on, so this is the right bar for
+        # "won't render an empty dashboard" (a country can have real
+        # per-category rows with no HICP weights yet — e.g. the US, category
+        # dimension doesn't need hicp_weight — and still have nothing for
+        # 'overall', which does).
+        #
+        # One bounded .limit(1) query per known country, not a single
+        # unscoped `select("country")` over the whole table: PostgREST caps
+        # an unbounded select at 1000 rows by default, and Portugal's own
+        # history alone had already grown past that — a real bug this
+        # replaced (the old version silently returned only PT once that
+        # happened, since the query result was 1000 PT rows and nothing else
+        # before ever reaching another country's rows).
+        available = []
+        for code, info in COUNTRY_INFO.items():
+            resp = (
+                self.client.table("inflation_metrics")
+                .select("country")
+                .eq("country", code)
+                .eq("dimension", "overall")
+                .limit(1)
+                .execute()
+            )
+            if resp.data:
+                available.append({"code": code, "name": info["name"], "currency": info["currency"]})
+        return available
 
     # --- /health ---
 

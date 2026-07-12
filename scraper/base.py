@@ -101,7 +101,11 @@ class BaseScraper(ABC):
 
                     attempted += 1
                     try:
-                        scraped = await with_backoff(lambda: self.fetch_listing(page, listing))
+                        # Suppressed below, not rewritten: ruff's B023 (loop-variable closure)
+                        # is a real general footgun, but doesn't apply here — with_backoff
+                        # calls this lambda synchronously within the same loop iteration,
+                        # never storing it for later, so `listing` can't have already advanced.
+                        scraped = await with_backoff(lambda: self.fetch_listing(page, listing))  # noqa: B023
                         self.db.upsert_snapshot(listing.id, scraped)
                         ok += 1
                     except BlockDetected:
@@ -169,7 +173,7 @@ class BaseScraper(ABC):
     async def _alert(self, result: RunResult, db_error: Exception | None = None) -> None:
         await send_run_alert(self.notifier, self.db, self.config.name, result, "scrape run", db_error=db_error)
 
-    async def _teardown(self) -> None:
+    async def _teardown(self) -> None:  # noqa: B027 - intentionally-optional override hook, not a forgotten abstractmethod
         """Hook for a subclass to release resources it set up itself (e.g.
         an HTTP client opened once for the whole run) — no-op by default,
         called after the Playwright context closes."""

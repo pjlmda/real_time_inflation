@@ -44,7 +44,6 @@ from __future__ import annotations
 
 import os
 from collections import defaultdict
-from datetime import date, timedelta
 
 from metrics.compute import fetch_category_weights, fetch_lookback_indices, fetch_recent_daily_map
 from metrics.formulas import inflation_rate, moving_average, weighted_overall_index

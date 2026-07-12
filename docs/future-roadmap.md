@@ -96,6 +96,18 @@ Genuinely small relative to everything else built this session.
 
 ## Part 2 — Multi-country expansion (France, Germany, UK, US)
 
+**Status: France and the US are both live** (see
+[france-expansion-plan.md](france-expansion-plan.md) and
+[us-expansion-plan.md](us-expansion-plan.md) for the full build writeups);
+Germany was researched and shelved (no viable data source found, see
+[germany-expansion-plan.md](germany-expansion-plan.md)); the UK remains
+unattempted. The actual sequencing didn't match the "France and Germany
+first" recommendation below — Germany turned out to have no real online
+grocery catalog at all, and the US ended up built and live before the UK
+was even researched, once Wegmans turned up as a genuinely open target.
+Bottleneck #3 below (the BLS/HICP crosswalk claim) turned out to be wrong
+and has since been corrected and resolved — see the inline note there.
+
 **See [france-expansion-plan.md](france-expansion-plan.md)** for a concrete,
 live-verified follow-up on the France case specifically — real market-share
 data, live anti-bot checks against all six major French chains (confirming
@@ -140,22 +152,30 @@ a real blocker, not just extra work).
    cost repeats per country, in an unfamiliar language each time. This is
    the least "fixable by better architecture" bottleneck of the four.
 
-3. **The US has no clean HICP-equivalent — a methodology problem specific
-   to the US.** France and Germany are both EU members already covered by
-   the *same* Eurostat `prc_hicp_inw` dataset this project already calls —
-   `weights/eurostat.py` would need only a `geo=FR`/`geo=DE` parameter
-   change to pull real, programmatic weights for either country, with
-   effectively no new code. The UK, post-Brexit, no longer reports into
-   that framework — the ONS publishes its own CPIH/CPI weights via a
-   different API with a different classification structure, needing a new
-   `weights/ons.py`-style fetcher, a real but bounded cost. The US
-   publishes CPI via the BLS using its own item-category classification,
-   not COICOP — there's no clean, fine-grained, programmatic crosswalk to
-   ECOICOP v2 leaf classes the way Eurostat provides for EU members. This
-   directly undermines the project's core differentiator (methodologically
-   aligned with, and comparable to, an official published index) for a US
-   version specifically — it would have to be reframed as "US CPI-comparable,
-   approximately," with real fidelity loss versus the current PT framing.
+3. **(Turned out wrong, corrected 2026-07-12) "The US has no clean
+   HICP-equivalent" — it does.** France and Germany are both EU members
+   already covered by the *same* Eurostat `prc_hicp_inw` dataset this
+   project already calls — `weights/eurostat.py` would need only a
+   `geo=FR`/`geo=DE` parameter change to pull real, programmatic weights
+   for either country, with effectively no new code. The UK, post-Brexit,
+   no longer reports into that framework — the ONS publishes its own
+   CPIH/CPI weights via a different API with a different classification
+   structure, needing a new `weights/ons.py`-style fetcher, a real but
+   bounded cost, still not attempted. The US publishes CPI via the BLS
+   using its own item-category classification, not COICOP directly — but
+   BLS's R-COICOP/R-HICP research series *is* a real, official crosswalk
+   (refreshed every January, same cadence as Eurostat), and `api.bls.gov`'s
+   public JSON endpoint exposes each item's own expenditure weight
+   ("Relative Importance") as request-time metadata. `weights/bls.py` is
+   built, live-verified, and syncing real weights into `category_weights`
+   for 14 ECOICOP leaf classes as of 2026-07-12 (see
+   [us-expansion-plan.md](us-expansion-plan.md) §7/§10) — this bottleneck
+   didn't hold up under actual live research, unlike #1 and #2 above, which
+   did. The remaining real cost is BLS's own item taxonomy being coarser
+   than ECOICOP in a few places (rice/pasta share one BLS item, no
+   yoghurt-specific item exists) — a disclosed granularity gap, not a
+   blocker, the same class of simplification already accepted elsewhere in
+   this project (e.g. Portugal's potato-folded-into-vegetables).
 
 4. **Currency and locale plumbing — real, bounded engineering work.**
    France and Germany use EUR, so nothing currency-related changes for
@@ -199,13 +219,19 @@ of the four.
 
 ### What would need to change structurally in the codebase
 
-Not attempted here in detail, but worth flagging as a real fork: today,
-`stores.country` exists as a column but the whole system otherwise assumes
-Portugal/EUR/pt-PT implicitly in dozens of places (scraper locale/timezone
-config, currency symbols, weight-fetcher's `geo` parameter, category
-curation itself). A genuine multi-country version would want "market"
-(country + currency + language) promoted to a first-class dimension
-threaded through the schema, the weights fetcher, and the frontend, rather
-than PT being hardcoded and other countries bolted on per-instance. That's
-itself a non-trivial refactor worth scoping deliberately before the second
-country is added, not discovered incrementally while adding it.
+**Status: done for the schema/backend/frontend core, as of migration 0007
+and the 2026-07-12 web app work.** This section originally described work
+"not attempted here in detail" — most of it has since actually been built:
+`inflation_metrics.country` and `category_weights(ecoicop2_code, country,
+...)` promoted country to a first-class dimension in the schema (see
+CLAUDE.md's "What multi-country support requires structurally"), every
+scraper reads locale/timezone/currency from `config/stores.yaml` per store
+rather than a hardcoded PT constant, `weights/eurostat.py`/`weights/bls.py`
+both take `country`/`geo` as real parameters, and `web/api/db.py` takes
+`country` as a per-request param everywhere with a live `CountrySwitcher`
+dropdown on the dashboard. What's still genuinely PT/EUR-specific: `€` is
+still hardcoded in a couple of frontend spots (`GapCard`, `FuelPanel`'s
+unit text isn't currency-symbol-driven), and `fuel_prices` has no country
+column at all (DGEG is genuinely Portugal-only, not a gap to fix). The
+UK's ONS weights fetcher remains the one real "new country" case not yet
+built or tested against this now-real structure.

@@ -1,6 +1,6 @@
 # Portugal Real-Time Inflation Tracker — System Overview
 
-Snapshot date: 2026-07-09. This document describes the system **as built and running**, not the aspirational spec — where the two differ, that's called out explicitly. The authoritative design spec remains [inflation-tracker-plan.md](../inflation-tracker-plan.md); this document is a companion status/reference doc. All three build phases are now complete; a v1 of the first `future-roadmap.md` direction (client-side personalized category weights, §3.11) has since shipped too — see [future-roadmap.md](future-roadmap.md) for what's still just planning (multi-country expansion, and any v2 refinements like preset weight profiles).
+Snapshot date: 2026-07-12 (originally written 2026-07-09; see §13 for what's changed since). This document describes the system **as built and running**, not the aspirational spec — where the two differ, that's called out explicitly. The authoritative design spec remains [inflation-tracker-plan.md](../inflation-tracker-plan.md); this document is a companion status/reference doc. All three build phases are now complete; a v1 of the first `future-roadmap.md` direction (client-side personalized category weights, §3.11) has since shipped too, and multi-country expansion (`future-roadmap.md` Part 2) is no longer just planning — France and the US are both live, see §13.
 
 ---
 
@@ -338,35 +338,43 @@ Anti-bot / respectful-scraping safeguards actually in place: persistent Playwrig
 
 ---
 
-## 13. Current state at a glance (as of 2026-07-09)
+## 13. Current state at a glance (as of 2026-07-12)
+
+Multi-country, not Portugal-only: **PT and FR are both live on the
+dashboard's country switcher, US joined 2026-07-12** (see CLAUDE.md's
+"Multi-country expansion" section and `docs/us-expansion-plan.md` §10 for
+the BLS weights fix that unblocked it). Germany was researched and
+shelved (`docs/germany-expansion-plan.md`); the UK is unattempted.
 
 | Table | Rows |
 |---|---|
-| stores | 4 (3 active) |
+| stores | 11 (10 active — 3 PT, 3 FR, 4 US) |
 | categories | 19 |
-| products | 99 |
-| product_listings | 109 |
-| price_snapshots | 423 |
-| category_observations | 189 |
-| inflation_metrics | 1,000 |
-| scrape_runs | 86 |
-| hicp_weights_cache | 2,330 |
-| fuel_prices | 12 (4 days × 3) |
+| products | 220 |
+| product_listings | 437 |
+| price_snapshots | 1,401 |
+| category_observations | 408 |
+| inflation_metrics | 2,644 |
+| scrape_runs | 157 |
+| hicp_weights_cache | 2,810 |
+| category_weights | 52 (19 PT + 19 FR + 14 US) |
+| fuel_prices | 24 (PT-only, DGEG has no country column) |
 
-Test suite: 88 tests, all pure-function/unit-level, no live network dependency, all passing. Line coverage across the first-party source tree (`alerting/`, `fuel/`, `metrics/`, `scraper/`, `seed/`, `weights/`, excluding `web/api/` which has no dedicated test suite) is **48%**, up from 29% before 2026-07-09's coverage push — the biggest remaining gaps are store-specific Playwright parsing code (`scraper/{auchan,continente,pingodoce}.py`, all category-crawl variants, 0–52%) and the CLI entrypoints (`scraper/run.py`, `fuel/run.py`, both 0%), consistent with the project's existing philosophy of testing pure logic and orchestration control flow rather than live browser interaction. No coverage tool is a committed dependency (would require regenerating `uv.lock`, not done here) — measure locally with `uv run --with coverage coverage run --source=alerting,fuel,metrics,scraper,seed,weights -m pytest && uv run coverage report`.
+Test suite: 142 tests, all pure-function/unit-level, no live network dependency, all passing.
 
-Phases per the build spec: **Phase 1 (foundation + multi-store ingest) — done. Phase 2 (metrics + dynamic crawl) — done**: both index families compute daily in the same job (`metrics/compute.py` + `metrics/category_compute.py`), scheduled, alerting. **Phase 3 (web app) — done**: FastAPI + Next.js dashboard live on Vercel (§3.11), including a v1 `/personalize` page for user-customizable category weights. `docs/future-roadmap.md` covers what's still just scoped, not built: multi-country expansion, and any v2 refinements to personalized weights (preset profiles, persisted profiles).
+Phases per the build spec: **Phase 1 (foundation + multi-store ingest) — done. Phase 2 (metrics + dynamic crawl) — done**: both index families compute daily in the same job (`metrics/compute.py` + `metrics/category_compute.py`), scheduled, alerting, and — since 2026-07-12 — batched per country instead of one query per (scope, period) (§11). **Phase 3 (web app) — done**: FastAPI + Next.js dashboard live on Vercel (§3.11), including a v1 `/personalize` page for user-customizable category weights and, since 2026-07-12, a live `CountrySwitcher` dropdown. **Current phase: multi-country expansion — in progress, not planning-only.** `docs/future-roadmap.md` Part 2's original bottleneck analysis is now mostly resolved by actually doing the work rather than by better architecture — see that doc's status note at the top of Part 2 for what changed vs. what was originally predicted.
 
 ---
 
 ## 14. Open items worth deciding on next
 
 - Missing-product ≥3-day alert, and a `scrape_runs`-equivalent observability table for fuel.
-- Scheduling `weights/eurostat.py` (currently manual-only) — now more pressing than before, since it needs to be re-run whenever `seed/categories.py` gains a new code, not just once a year.
+- Scheduling `weights/eurostat.py`/`weights/bls.py` (both currently manual-only) — now more pressing than before, since a weights fetcher needs to be re-run whenever `seed/categories.py` gains a new code, not just once a year, and per-country now that there are three of them.
 - Category-average per-row coverage (currently one global figure per `as_of_date` — see §5's `category_compute.py` note) is a candidate refinement, not a blocker.
-- `hicp_weights_cache` has no retention/pruning policy and is growing ~1,400+ rows per fetch (§3.9/§11) — worth a decision before it becomes large enough to matter for Supabase's storage ceiling (see `docs/future-roadmap.md` Part 2 on that ceiling more generally).
+- `hicp_weights_cache` has no retention/pruning policy and is growing ~1,400+ rows per fetch (§3.9/§11), now across three countries — worth a decision before it becomes large enough to matter for Supabase's storage ceiling (see `docs/future-roadmap.md` Part 2 on that ceiling more generally).
 - Personalized weights (`/personalize`) is a v1: no preset profiles (vegetarian/family/budget-conscious) yet, and the weight vector only persists via the shareable URL, not `localStorage` — both flagged as natural, low-cost follow-ups in `docs/future-roadmap.md` Part 1.
-- Multi-country expansion (France/Germany as the natural next-country candidates, per `docs/future-roadmap.md` Part 2) remains planning-only — no implementation has started.
-- Test coverage sits at 48% (§4.4) after 2026-07-09's push — the remaining gaps are almost entirely store-specific Playwright parsing/CLI entrypoints, which would need a real mocking strategy for Playwright's `Page`/`BrowserContext` (not attempted) to close meaningfully. No coverage tool is a committed dev dependency yet (adding one means regenerating `uv.lock`, deferred to avoid a `uv sync --frozen` mismatch in CI without `uv` available to do it safely).
+- The UK remains completely unattempted (needs a new ONS-based weights fetcher, no code exists) — the one clear "next country" candidate per `docs/future-roadmap.md` Part 2's updated sequencing note.
+- `compute.yml`/`scrape.yml` only ever compute/scrape "today" — there's no automated backfill if a day gets scraped but its compute run doesn't fire for some reason (e.g. a manual scrape outside the scheduled workflow, which is exactly what happened to France on 2026-07-11 and had to be fixed with a one-off manual `metrics.compute` re-run). Worth a decision on whether a periodic "scan for gaps in inflation_metrics and backfill them" job is worth building, or whether this stays a rare, manually-handled case.
+- No coverage tool is a committed dev dependency (adding one means regenerating `uv.lock`); last measured at 48% before the multi-country work, not re-measured since.
 
 **Resolved since this doc was first written**: job-level `timeout-minutes` added to all three workflows; Auchan's promo-price selector verified live and fixed (was silently matching nothing); unexpected/DB-write failures during any scrape or compute run now reach Telegram instead of failing silently past `scrape_runs`/alerting; `scrape.yml`/`fuel.yml` now run twice daily (06:00 + 10:00 UTC same-day retry), skipping stores block-detected on the first pass via the new `scrape_runs.blocked` column (migration `0005`); Phase 2 completed (category-average index compute built, tested, scheduled); **Phase 3 completed** — FastAPI + Next.js dashboard shipped and live on Vercel, resolving the backend-holds-service-key-vs-RLS decision in favor of the former (§12); Cheese/Eggs ECOICOP mislabeling fixed and 8 new categories (19 total) plus cheapest-tier products (99 total) added to the fixed basket (§3.2/§3.3); a 7-day moving-average column (`index_value_ma7`) added to `inflation_metrics` (§3.7/§6).

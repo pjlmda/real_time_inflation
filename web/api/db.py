@@ -28,7 +28,11 @@ from supabase import Client, ClientOptions, create_client
 # status changes.
 ACTIVE_STORES_BY_COUNTRY: dict[str, list[str]] = {
     "PT": ["continente", "pingo-doce", "auchan"],
-    "FR": ["auchan-fr-paris", "auchan-fr-marseille", "lidl-fr"],
+    # lidl-fr deactivated 2026-07-23 (catalog churned too fast for the
+    # fixed-basket methodology - docs/france-expansion-plan.md §4 step 7);
+    # kept out of this list so /health stops reporting its frozen last-ever
+    # scrape_runs row as a permanent "failed" store.
+    "FR": ["auchan-fr-paris", "auchan-fr-marseille"],
     "US": ["wegmans-us-medford", "wegmans-us-nyc", "wegmans-us-fairfax", "wegmans-us-chapelhill"],
 }
 # Mirrors scraper/run.py's CATEGORY_CRAWLERS keys (this module can't import

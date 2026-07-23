@@ -106,6 +106,39 @@ def fetch_snapshots_by_listing(client, listing_ids: list[int]) -> dict[int, list
     return by_listing
 
 
+# Explicit, narrowly-scoped exclusion for confirmed scraper-bug artifacts -
+# NOT a general outlier heuristic. A magnitude-based guard (reject any
+# relative outside e.g. [0.2x, 5x] of base price) was tried and rejected:
+# tested live against 2026-07-23's real data, it would also have suppressed
+# genuine Lidl France flash-sale promos that day (olive oil -83% off list,
+# ratio 0.17 - more extreme than several of this bug's bad days), so
+# magnitude alone can't safely tell a glitch from a real deep promo.
+#
+# price_snapshots stays append-only and untouched (never update/delete rows
+# in place - CLAUDE.md); this only tells compute to treat these specific
+# (listing_id, scrape_date, price_field) rows as if that day's snapshot
+# were absent, reusing the same code path as a genuinely missing snapshot.
+#
+# Root cause (scraper/lidl_france.py, fixed 2026-07-23): the promo
+# stroke-price locator wasn't scoped to the product's own price tile, so on
+# wine PDPs it picked up an unrelated "similar products" carousel item's
+# price instead - regular_price swung between two unrelated wines' prices
+# (up to EUR 189.95 on a EUR 7.99 bottle) while the real price stayed
+# correct throughout, distorting France's headline index (100 -> 390 -> 97.5
+# across one week). Add future confirmed-bad rows here the same way.
+CORRUPTED_SNAPSHOTS: set[tuple[int, str, str]] = {
+    (815, "2026-07-16", "regular_price"),
+    (815, "2026-07-17", "regular_price"),
+    (815, "2026-07-18", "regular_price"),
+    (815, "2026-07-19", "regular_price"),
+    (815, "2026-07-20", "regular_price"),
+    (815, "2026-07-21", "regular_price"),
+    (815, "2026-07-22", "regular_price"),
+    (815, "2026-07-23", "regular_price"),
+    (1020, "2026-07-23", "regular_price"),
+}
+
+
 def base_and_current_price(
     snapshots: list[dict], as_of_date: str, price_field: str
 ) -> tuple[float, float] | None:
@@ -139,6 +172,8 @@ def class_relatives(
     for row in basket_rows:
         product = row["products"]
         category = product["categories"]
+        if (row["id"], as_of_date, price_field) in CORRUPTED_SNAPSHOTS:
+            continue
         result = base_and_current_price(
             snapshots_by_listing.get(row["id"], []), as_of_date, price_field
         )

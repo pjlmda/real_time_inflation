@@ -1,6 +1,7 @@
 import pytest
 
 from metrics.compute import (
+    CORRUPTED_SNAPSHOTS,
     base_and_current_price,
     build_index_rows,
     class_relatives,
@@ -109,6 +110,36 @@ def test_class_relatives_skips_listings_with_zero_base_price():
 
     assert n_covered == 0
     assert by_category == {}
+
+
+def test_class_relatives_skips_explicitly_listed_corrupted_snapshots():
+    # Regression test for the Lidl France wine bug (scraper/lidl_france.py,
+    # fixed 2026-07-23): a page-wide (not tile-scoped) stroke-price locator
+    # picked up an unrelated carousel item's price, so listing 815's
+    # regular_price on 2026-07-16 is a known-bad scraper-bug artifact, not a
+    # real price. It must be excluded from the headline (regular_price)
+    # basis for that exact day, while the effective (price) basis for the
+    # SAME listing/day - which was never wrong - stays fully covered.
+    listing_id, bad_date, bad_field = next(iter(CORRUPTED_SNAPSHOTS))
+    basket_rows = [_basket_row(listing_id)]
+    snapshots_by_listing = {
+        listing_id: [
+            {"scrape_date": "2026-07-01", "price": 1.00, "regular_price": 1.00},
+            {"scrape_date": bad_date, "price": 1.10, "regular_price": 999.00},
+        ]
+    }
+
+    excluded_by_category, excluded_n_covered = class_relatives(
+        basket_rows, snapshots_by_listing, as_of_date=bad_date, price_field=bad_field
+    )
+    other_field = "price" if bad_field == "regular_price" else "regular_price"
+    unaffected_by_category, unaffected_n_covered = class_relatives(
+        basket_rows, snapshots_by_listing, as_of_date=bad_date, price_field=other_field
+    )
+
+    assert excluded_n_covered == 0
+    assert excluded_by_category == {}
+    assert unaffected_n_covered == 1
 
 
 def test_class_relatives_defaults_within_cat_weight_when_falsy():

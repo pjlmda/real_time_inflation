@@ -77,12 +77,28 @@ class LidlFranceScraper(BaseScraper):
             pass
 
     async def _extract_price_block(self, page: Page, listing: Listing) -> ScrapedPrice:
-        price_locator = page.locator(".ods-price__value").first
+        # `.ods-price__value`/`.ods-price__stroke-price`/`.ods-price__footer`
+        # are NOT unique to this product's own price display - confirmed live
+        # (2026-07-23) that Lidl renders a PDP's own price as the first tile
+        # of an `.odsc-tile-grid` "similar products" carousel that follows
+        # the same markup for every tile. Searching the whole page for these
+        # classes independently (the old approach) meant a page-wide-`.first`
+        # stroke-price lookup could return a DIFFERENT carousel tile's price
+        # than the one the plain `.ods-price__value` lookup found - reproduced
+        # live on a wine listing where the real product (tile 0, no active
+        # promo) had its regular_price silently replaced by an unrelated
+        # carousel wine's crossed-out price (up to €189.95 on a €7.99 bottle).
+        # Scoping every lookup to the SAME first `.ods-price` container
+        # guarantees value/stroke/footer always come from one single tile.
+        price_container = page.locator(".ods-price").first
+        if await price_container.count() == 0:
+            raise FetchFailed(f"no price element found for listing {listing.id} (selectors need review)")
+        price_locator = price_container.locator(".ods-price__value").first
         if await price_locator.count() == 0:
             raise FetchFailed(f"no price element found for listing {listing.id} (selectors need review)")
         price = _parse_euro(await price_locator.inner_text())
 
-        stroke_locator = page.locator(".ods-price__stroke-price").first
+        stroke_locator = price_container.locator(".ods-price__stroke-price").first
         has_stroke = await stroke_locator.count() > 0
         regular_price = _parse_euro(await stroke_locator.inner_text()) if has_stroke else price
         is_promotion = has_stroke
@@ -91,7 +107,7 @@ class LidlFranceScraper(BaseScraper):
         if is_promotion and regular_price > 0:
             promotion_label = promotion_label_from_prices(price, regular_price)
 
-        footer_locator = page.locator(".ods-price__footer").first
+        footer_locator = price_container.locator(".ods-price__footer").first
         footer_text = (await footer_locator.inner_text()) if await footer_locator.count() > 0 else ""
         price_per_unit, unit_basis = _parse_footer(footer_text, price)
 

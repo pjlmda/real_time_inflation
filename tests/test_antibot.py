@@ -3,7 +3,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from scraper.antibot import RetryableHttpError, RobotsChecker, detect_block, jittered_delay, with_backoff
+from scraper.antibot import RetryableHttpError, RobotsChecker, detect_block, goto_checked, jittered_delay, with_backoff
 from scraper.models import BlockDetected, FetchFailed
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -104,6 +104,51 @@ async def test_with_backoff_never_retries_block_detected():
     with pytest.raises(BlockDetected):
         await with_backoff(fn, max_attempts=4)
     assert calls == 1
+
+
+class _FakeResponse:
+    def __init__(self, status: int):
+        self.status = status
+        self.headers: dict = {}
+
+
+class _FakePage:
+    def __init__(self, status: int):
+        self._status = status
+
+    async def goto(self, url, wait_until=None, timeout=None):
+        return _FakeResponse(self._status)
+
+
+@pytest.mark.asyncio
+async def test_goto_checked_raises_fetch_failed_on_404_without_retrying():
+    # Regression test for the Lidl France bug (2026-07-23): a 404 wasn't in
+    # RETRYABLE_STATUS, so goto_checked used to return the response as if
+    # the page had loaded, letting the caller parse a "not found" fallback
+    # page's content as if it were a real product's price. A 404 must raise
+    # immediately - retrying a genuinely missing page wastes requests, but
+    # silently treating it as success is worse.
+    page = _FakePage(404)
+
+    with pytest.raises(FetchFailed):
+        await goto_checked(page, "https://example.com/p/delisted-product")
+
+
+@pytest.mark.asyncio
+async def test_goto_checked_raises_retryable_on_503():
+    page = _FakePage(503)
+
+    with pytest.raises(RetryableHttpError):
+        await goto_checked(page, "https://example.com/p/product")
+
+
+@pytest.mark.asyncio
+async def test_goto_checked_returns_response_on_200():
+    page = _FakePage(200)
+
+    response = await goto_checked(page, "https://example.com/p/product")
+
+    assert response.status == 200
 
 
 @pytest.mark.asyncio

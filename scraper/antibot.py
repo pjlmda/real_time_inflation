@@ -122,7 +122,16 @@ async def goto_checked(page: Page, url: str, timeout: int = 30_000) -> Response 
     """`page.goto` + the retry-status check every DOM-based store scraper
     repeated verbatim (continente/pingodoce/auchan/auchan_france/lidl_france)
     — raises RetryableHttpError on a 403/429/5xx response, otherwise returns
-    the response for the caller's own block-detection check."""
+    the response for the caller's own block-detection check.
+
+    A 404 is deliberately NOT retryable (retrying a genuinely missing page
+    wastes requests) but must still raise, not fall through - confirmed live
+    2026-07-23 that 29 of Lidl France's 30 tracked listing URLs now 404, and
+    because 404 wasn't in RETRYABLE_STATUS, the old code silently returned
+    the response as if the page had loaded, letting _extract_price_block
+    parse whatever fallback/"not found" content Lidl serves as if it were
+    the real product's price - fabricating garbage prices for two weeks
+    instead of failing those listings cleanly."""
     response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
     if response is not None and response.status in RETRYABLE_STATUS:
         retry_after = None
@@ -130,6 +139,8 @@ async def goto_checked(page: Page, url: str, timeout: int = 30_000) -> Response 
         if header and header.isdigit():
             retry_after = float(header)
         raise RetryableHttpError(status=response.status, retry_after=retry_after)
+    if response is not None and response.status == 404:
+        raise FetchFailed(f"page not found (404) for url: {url}")
     return response
 
 

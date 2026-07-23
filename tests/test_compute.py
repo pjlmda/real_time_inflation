@@ -8,6 +8,7 @@ from metrics.compute import (
     fetch_category_weights,
     fetch_lookback_indices,
     fetch_recent_daily_map,
+    fetch_snapshots_by_listing,
 )
 from tests.fake_supabase import FakeSupabaseClient
 
@@ -166,6 +167,27 @@ def test_fetch_basket_rows_returns_empty_without_querying_when_no_store_ids():
 
     assert result == []
     assert client.tables == {}  # never even touched product_listings
+
+
+def test_fetch_snapshots_by_listing_paginates_past_the_1000_row_page_size():
+    # Regression test for the PostgREST-default-1000-row-cap bug class (same
+    # class already found and fixed once in web/api/db.py:
+    # get_available_countries) - as price_snapshots history grows past 1000
+    # rows for a country's listings, a single unpaginated .execute() used to
+    # silently truncate, undercounting coverage and dropping whole
+    # categories from the dashboard. This asserts fetch_snapshots_by_listing
+    # keeps paging (a second .execute() call) until a short page ends it.
+    client = FakeSupabaseClient()
+    first_page = [{"listing_id": 1, "scrape_date": f"day-{i}", "price": 1.0, "regular_price": 1.0} for i in range(1000)]
+    second_page = [{"listing_id": 2, "scrape_date": "2026-07-23", "price": 2.0, "regular_price": 2.0}]
+    client.table("price_snapshots").select_results.append(first_page)
+    client.table("price_snapshots").select_results.append(second_page)
+
+    result = fetch_snapshots_by_listing(client, [1, 2])
+
+    assert len(client.tables["price_snapshots"].calls) == 2
+    assert len(result[1]) == 1000
+    assert result[2] == second_page
 
 
 def test_fetch_category_weights_keyed_by_code_scoped_to_country():

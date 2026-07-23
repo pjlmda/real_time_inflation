@@ -55,19 +55,34 @@ def fetch_category_observations(client, store_ids: list[int]) -> list[dict]:
     """Scoped to an explicit store_id list (always one country's stores) —
     same reasoning as metrics/compute.py:fetch_basket_rows: COICOP codes are
     shared across countries, so an unscoped fetch would blend two
-    countries' observations into the same category_id's aggregation."""
+    countries' observations into the same category_id's aggregation.
+
+    Paginated for the same reason as metrics/compute.py:
+    fetch_snapshots_by_listing - this table is append-only and PostgREST
+    caps an unbounded select at 1000 rows, so a single .execute() silently
+    truncates once history grows past that."""
     if not store_ids:
         return []
-    resp = (
-        client.table("category_observations")
-        .select(
-            "store_id, category_id, scrape_date, n_products, median_price_per_unit, "
-            "stores(slug), categories(ecoicop2_code)"
+    page_size = 1000
+    rows: list[dict] = []
+    offset = 0
+    while True:
+        resp = (
+            client.table("category_observations")
+            .select(
+                "store_id, category_id, scrape_date, n_products, median_price_per_unit, "
+                "stores(slug), categories(ecoicop2_code)"
+            )
+            .in_("store_id", store_ids)
+            .order("id")
+            .range(offset, offset + page_size - 1)
+            .execute()
         )
-        .in_("store_id", store_ids)
-        .execute()
-    )
-    return resp.data
+        rows.extend(resp.data)
+        if len(resp.data) < page_size:
+            break
+        offset += page_size
+    return rows
 
 
 def group_by_pair(rows: list[dict]) -> dict[tuple[int, int], list[dict]]:

@@ -36,6 +36,9 @@ class FakeQuery:
     def order(self, col, desc=False):
         return self
 
+    def range(self, start, end):
+        return self
+
     def execute(self):
         self.table.calls.append(self)
         if self.op == "select":

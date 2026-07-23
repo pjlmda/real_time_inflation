@@ -74,16 +74,34 @@ def fetch_category_weights(client, country: str) -> dict[str, float]:
 
 
 def fetch_snapshots_by_listing(client, listing_ids: list[int]) -> dict[int, list[dict]]:
+    """Fetches each listing's full price_snapshots history (needed to find its
+    own first-ever scrape_date as the base price - see base_and_current_price).
+    PostgREST caps an unbounded select at 1000 rows by default, and this
+    country-wide history has grown well past that (the same truncation bug
+    already found and fixed once in web/api/db.py:get_available_countries) -
+    paginate via .range() rather than trusting a single .execute() to return
+    everything. Explicit .order("id") makes each page's boundary stable
+    across calls, which an unordered PostgREST select doesn't guarantee."""
     if not listing_ids:
         return {}
-    resp = (
-        client.table("price_snapshots")
-        .select("listing_id, scrape_date, price, regular_price")
-        .in_("listing_id", listing_ids)
-        .execute()
-    )
+    page_size = 1000
+    rows: list[dict] = []
+    offset = 0
+    while True:
+        resp = (
+            client.table("price_snapshots")
+            .select("listing_id, scrape_date, price, regular_price")
+            .in_("listing_id", listing_ids)
+            .order("id")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows.extend(resp.data)
+        if len(resp.data) < page_size:
+            break
+        offset += page_size
     by_listing: dict[int, list[dict]] = {}
-    for row in resp.data:
+    for row in rows:
         by_listing.setdefault(row["listing_id"], []).append(row)
     return by_listing
 

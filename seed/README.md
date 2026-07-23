@@ -264,6 +264,24 @@ not a bug, and still well above the 0.85 low-confidence threshold).
 
 Basket now at 162 products / 205 listings total (up from 123/144).
 
+**Update, 2026-07-23 — all 30 Lidl France listings deactivated.** The
+100% live-coverage numbers above were real at curation time (2026-07-11),
+but within 12 days Lidl restructured its catalog IDs and 29 of the 30
+listings started 404ing; re-curation research found the specific brands/
+products had shifted too (Nixe tuna → Petit Navire, La Laitière/Envia
+yoghurt → Activia/Danone, Chêne d'Argent cheese → Galbani/Milbona,
+Primadonna olive oil → Sol&Mar), and staple categories with no live match
+at all (bread, pasta) even on broadened search terms. Rather than force
+poor-fit substitutes into 20+ categories on a basket that had already
+proven unstable once, all 30 listings were deactivated
+(`product_listings.is_active = false`) and the store dropped from the
+scheduled scrape matrix — see `docs/france-expansion-plan.md` §4 step 7
+for the full root-cause writeup (a `goto_checked()` gap that silently
+treated a 404 as a successful page load is the reason this went
+undetected for two weeks rather than alerting immediately). France's
+basket is Auchan-only until/unless a second genuinely stable retailer is
+found.
+
 ## United States: Wegmans — first US store, built deep given the market's population size
 
 `scraper/wegmans.py` built and verified live 2026-07-11, following the

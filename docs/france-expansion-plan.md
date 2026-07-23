@@ -358,17 +358,27 @@ regulatory differences, personal-care assortment differences).
 4. **Robustness round — done, 2026-07-11.** Both stores' 11-12 categories had exactly one product each, so the within-class Jevons average had nothing to average. Added 1-2 more products per category at both stores (22 at Auchan France, 18 at Lidl France — some Lidl categories only got 1 due to genuine catalog gaps, full breakdown in `seed/README.md`), always including that category's cheapest genuinely-available option. A live curation mistake was caught and dropped before it reached the seed data (a "vin rouge" search result that turned out to be priced by weight, not volume — a fresh-fruit item mismatched by keyword overlap, not real wine). Verified live end to end: Lidl France 18/18 (100%), Auchan Paris 33/33 (100%), Auchan Marseille 31/33 (94% — two poultry listings genuinely aren't carried at the Marseille Drive location, a real regional-assortment gap, still well above the 0.85 alert threshold). France basket now 63 products / 96 listings (was 23/34).
 5. **Added to the scheduled matrix — done, 2026-07-11.** `auchan-fr-paris`/`auchan-fr-marseille`/`lidl-fr` are now in `.github/workflows/scrape.yml`'s matrix (twice-daily cron, same as the PT stores) — France now accrues daily history automatically instead of only running on manual `workflow_dispatch`. None of the three has a dynamic category-crawl scraper yet (`CATEGORY_CRAWLERS` in `scraper/run.py` only covers the PT stores), so the matrix carries a per-store `category: true/false` flag and the category-crawl step is conditional (`if: matrix.category`) — running it unconditionally for France would fail the job with "No category scraper implemented for store ...", not skip gracefully.
 6. **Phase 3 — full basket curation** for both stores, following the same category-by-category, live-verified process as every PT basket-growth round (still open: 8 more categories to match Portugal's 19; also open: France has no dynamic category-crawl scraper at all yet, only the fixed-basket index).
-5. **Explicitly not planned**: Leclerc, Carrefour, Intermarché, Système U — revisit only if the project's scope deliberately changes to accept proxy/anti-bot escalation costs, which `CLAUDE.md`'s stated scope currently rules out.
+7. **Lidl France deactivated, 2026-07-23 — the store's catalog turned out to churn too fast for a fixed basket.** France's headline index had been swinging wildly (100 → 390 → 97.5 over one week); tracing it found two compounding problems, both in `scraper/lidl_france.py`/`scraper/antibot.py`, not in the compute layer:
+   - The promo (`.ods-price__stroke-price`) locator wasn't scoped to the same product tile as the price locator, so on pages showing a "similar products" carousel it could grab an unrelated item's crossed-out price. Fixed by scoping every price-block lookup to the same first `.ods-price` container.
+   - The real, bigger cause: `goto_checked()` never treated HTTP 404 as a failure (`RETRYABLE_STATUS` only covered `{403, 429, 500, 502, 503, 504}`), so a delisted product's page was parsed as if it had loaded normally. Live-checked all 30 tracked Lidl France listing URLs on 2026-07-23: **29 of 30 returned a genuine 404**, IDs having shifted from the `10036xxx` to `10037xxx` range in under two weeks.
+
+   Re-curation research (live searches for replacements) found this wasn't a one-time renumbering glitch: broad category searches for staples still curated at Auchan without issue (spaghetti, pâtes, pain) returned almost no matching grocery results at all, and categories that did have matches (thon, yaourt, fromage, huile d'olive, vin) had shifted to entirely different brands than what was curated only 12 days earlier (Nixe → Petit Navire, La Laitière/Envia → Activia/Danone, Chêne d'Argent → Galbani/Milbona, Primadonna → Sol&Mar). Lidl's own online assortment appears to rotate its specific SKUs on a timescale the fixed-basket methodology can't tolerate — the same "smaller, rotating online assortment" pattern already noted for rice back in Phase 2 (§4 step 3), just far more pervasive than that one gap suggested at the time.
+
+   `goto_checked()` now raises cleanly on a 404 (protects every store's scraper, not just Lidl's, from silently fabricating prices off a "not found" fallback page again) — but rather than force poor-fit substitutes into 20+ categories to keep Lidl in the basket, all 30 `lidl-fr` listings were deactivated (`product_listings.is_active = false`) and the store removed from `scrape.yml`'s scheduled matrix (`active: false` in `config/stores.yaml`, matching the precedent already set by the seeded-but-inactive Portuguese Lidl entry). France's full `inflation_metrics` history was recomputed Auchan-only. **If a future country's Lidl entry shows this same pattern — most of a freshly-curated basket going stale within ~2 weeks — that's grounds to treat Lidl generally as a poor fit for this methodology, not just a one-off for France.**
+8. **Explicitly not planned**: Leclerc, Carrefour, Intermarché, Système U — revisit only if the project's scope deliberately changes to accept proxy/anti-bot escalation costs, which `CLAUDE.md`'s stated scope currently rules out.
 
 ## 5. Honest framing for the result
 
-Even a fully-executed Phase 1–4 gives a France index built from two chains
-covering ~16.6% of the market by revenue share — a narrower retailer mix
-than Portugal's three-store, much-friendlier setup. That doesn't invalidate
-the methodology (HICP-style indices don't require exhaustive retailer
-coverage, just a representative, consistently-sampled basket), but it
-should be labeled honestly in the UI the same way the "supermarket
-HICP-comparable, not full HICP" distinction already is for Portugal — a
-France index from Auchan+Lidl alone is a narrower slice of the market than
-its Portuguese counterpart, and that's worth saying plainly rather than
-implying parity.
+**Updated 2026-07-23 — France is Auchan-only, not Auchan+Lidl, since Lidl
+France was deactivated (§4 step 7).** The France index is now built from a
+single chain (two Drive locations) covering a narrower market-share slice
+than the original two-chain plan assumed. That doesn't invalidate the
+methodology (HICP-style indices don't require exhaustive retailer coverage,
+just a representative, consistently-sampled basket), but it should be
+labeled honestly in the UI the same way the "supermarket HICP-comparable,
+not full HICP" distinction already is for Portugal — a France index from
+Auchan alone is a narrower slice of the market than its Portuguese
+counterpart, and narrower than originally planned for France itself. Worth
+revisiting once a second genuinely stable France retailer is found, rather
+than re-adding Lidl on the assumption this round's catalog churn was a
+one-off.

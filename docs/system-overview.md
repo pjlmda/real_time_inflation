@@ -338,29 +338,33 @@ Anti-bot / respectful-scraping safeguards actually in place: persistent Playwrig
 
 ---
 
-## 13. Current state at a glance (as of 2026-07-12)
+## 13. Current state at a glance (as of 2026-07-23)
 
 Multi-country, not Portugal-only: **PT and FR are both live on the
 dashboard's country switcher, US joined 2026-07-12** (see CLAUDE.md's
 "Multi-country expansion" section and `docs/us-expansion-plan.md` §10 for
 the BLS weights fix that unblocked it). Germany was researched and
 shelved (`docs/germany-expansion-plan.md`); the UK is unattempted.
+**Lidl France deactivated 2026-07-23** — its catalog churned too much of
+its curated basket within ~2 weeks for the fixed-basket methodology to
+tolerate (see `docs/france-expansion-plan.md` §4 step 7) — France is
+Auchan-only (Paris + Marseille) as of this snapshot.
 
 | Table | Rows |
 |---|---|
-| stores | 11 (10 active — 3 PT, 3 FR, 4 US) |
+| stores | 11 (9 active — 3 PT, 2 FR, 4 US) |
 | categories | 19 |
 | products | 220 |
-| product_listings | 437 |
-| price_snapshots | 1,401 |
-| category_observations | 408 |
-| inflation_metrics | 2,644 |
-| scrape_runs | 157 |
+| product_listings | 437 (30 France listings deactivated 2026-07-23; row itself not deleted — `price_snapshots` stays append-only) |
+| price_snapshots | 5,999 |
+| category_observations | 983 |
+| inflation_metrics | 9,104 |
+| scrape_runs | 442 |
 | hicp_weights_cache | 2,810 |
 | category_weights | 52 (19 PT + 19 FR + 14 US) |
-| fuel_prices | 24 (PT-only, DGEG has no country column) |
+| fuel_prices | 57 (PT-only, DGEG has no country column) |
 
-Test suite: 142 tests, all pure-function/unit-level, no live network dependency, all passing.
+Test suite: 147 tests, all pure-function/unit-level, no live network dependency, all passing.
 
 Phases per the build spec: **Phase 1 (foundation + multi-store ingest) — done. Phase 2 (metrics + dynamic crawl) — done**: both index families compute daily in the same job (`metrics/compute.py` + `metrics/category_compute.py`), scheduled, alerting, and — since 2026-07-12 — batched per country instead of one query per (scope, period) (§11). **Phase 3 (web app) — done**: FastAPI + Next.js dashboard live on Vercel (§3.11), including a v1 `/personalize` page for user-customizable category weights and, since 2026-07-12, a live `CountrySwitcher` dropdown. **Current phase: multi-country expansion — in progress, not planning-only.** `docs/future-roadmap.md` Part 2's original bottleneck analysis is now mostly resolved by actually doing the work rather than by better architecture — see that doc's status note at the top of Part 2 for what changed vs. what was originally predicted.
 

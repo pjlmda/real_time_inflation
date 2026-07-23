@@ -50,8 +50,6 @@ jobs:
             category: false
           - store: auchan-fr-marseille
             category: false
-          - store: lidl-fr
-            category: false
           - store: wegmans-us-medford
             category: false
           - store: wegmans-us-nyc

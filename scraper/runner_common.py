@@ -17,6 +17,26 @@ from scraper.store_config import StoreConfig
 
 PROFILE_DIR = Path(__file__).resolve().parent.parent / ".pw-profile"
 
+# Was error_reasons[:5] in both BaseScraper.run and CategoryCrawlerBase.run -
+# silently dropped every failure past the 5th with no indication anything
+# was omitted. Found while investigating four Auchan France Marseille
+# listings that looked like they'd stopped being scraped entirely (no
+# success, no error) when they were actually failing every day exactly like
+# their siblings - Marseille regularly has 9+ failing listings, so 4 of them
+# never made it into error_summary at all. Raised the cap and made
+# truncation visible instead of silent.
+ERROR_SUMMARY_LIMIT = 20
+
+
+def summarize_error_reasons(error_reasons: list[str]) -> str | None:
+    if not error_reasons:
+        return None
+    summary = "; ".join(error_reasons[:ERROR_SUMMARY_LIMIT])
+    omitted = len(error_reasons) - ERROR_SUMMARY_LIMIT
+    if omitted > 0:
+        summary += f"; and {omitted} more"
+    return summary
+
 
 async def build_context(
     playwright, config: StoreConfig, proxy_url: str | None, profile_suffix: str = ""

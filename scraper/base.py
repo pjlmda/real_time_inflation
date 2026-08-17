@@ -12,7 +12,7 @@ from alerting.base import Notifier
 from scraper.antibot import RobotsChecker, sleep_jitter, with_backoff
 from scraper.db import SupabaseWriter, is_same_day
 from scraper.models import BlockDetected, FetchFailed, Listing, RunResult, ScrapedPrice
-from scraper.runner_common import build_context, send_run_alert
+from scraper.runner_common import build_context, send_run_alert, summarize_error_reasons
 from scraper.store_config import StoreConfig
 
 COVERAGE_ALERT_THRESHOLD = 0.85
@@ -145,7 +145,7 @@ class BaseScraper(ABC):
             failed=failed,
             status=status,
             coverage=coverage,
-            error_summary="; ".join(error_reasons[:5]) if error_reasons else None,
+            error_summary=summarize_error_reasons(error_reasons),
             blocked=blocked,
         )
 

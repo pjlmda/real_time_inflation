@@ -94,14 +94,15 @@ def group_by_pair(rows: list[dict]) -> dict[tuple[int, int], list[dict]]:
 
 def relative_for_pair(pair_rows: list[dict], as_of_date: str) -> tuple[float, int] | None:
     """Pure: one (store, category) pair's own history -> (relative, n_products
-    for as_of_date), or None if there's no observation for as_of_date or the
-    base (that pair's own first-ever observation) is non-positive/missing."""
+    for as_of_date), or None if there's no observation for as_of_date, or
+    either that day's or the base (that pair's own first-ever observation)
+    median_price_per_unit is non-positive/missing."""
     ordered = sorted(pair_rows, key=lambda r: r["scrape_date"])
     base = ordered[0]["median_price_per_unit"]
     if not base or base <= 0:
         return None
     today_row = next((r for r in ordered if r["scrape_date"] == as_of_date), None)
-    if today_row is None or today_row["median_price_per_unit"] is None:
+    if today_row is None or not today_row["median_price_per_unit"] or today_row["median_price_per_unit"] <= 0:
         return None
     relative = float(today_row["median_price_per_unit"]) / float(base)
     return relative, int(today_row["n_products"] or 0)

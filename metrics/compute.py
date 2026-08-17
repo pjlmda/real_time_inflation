@@ -180,7 +180,7 @@ def class_relatives(
         if result is None:
             continue
         base_price, current_price = result
-        if base_price <= 0:
+        if base_price <= 0 or current_price <= 0:
             continue
         relative = current_price / base_price
         weight = float(product["within_cat_weight"]) if product["within_cat_weight"] else 1.0

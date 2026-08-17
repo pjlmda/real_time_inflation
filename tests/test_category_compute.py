@@ -69,6 +69,23 @@ def test_relative_for_pair_returns_none_when_today_value_missing():
     assert relative_for_pair(pair_rows, as_of_date="2026-07-02") is None
 
 
+def test_relative_for_pair_returns_none_when_today_value_is_zero():
+    # Sibling of test_relative_for_pair_returns_none_when_base_is_zero: the
+    # base was already guarded against 0, but today's own value wasn't -
+    # same asymmetric gap that let metrics/compute.py's class_relatives crash
+    # the whole compute run on a zero *current* price (see
+    # test_class_relatives_skips_listings_with_zero_current_price in
+    # tests/test_compute.py). weighted_overall_index has no log() call so
+    # this wouldn't crash here, but a relative of 0.0 would silently corrupt
+    # the category_avg index rather than being excluded like a real gap.
+    pair_rows = [
+        {"scrape_date": "2026-07-01", "median_price_per_unit": 2.00, "n_products": 8},
+        {"scrape_date": "2026-07-02", "median_price_per_unit": 0, "n_products": 9},
+    ]
+
+    assert relative_for_pair(pair_rows, as_of_date="2026-07-02") is None
+
+
 def test_compute_category_avg_metrics_for_date_returns_empty_when_no_observations():
     client = FakeSupabaseClient()
     client.table("category_observations").select_results.append([])

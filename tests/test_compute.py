@@ -112,6 +112,29 @@ def test_class_relatives_skips_listings_with_zero_base_price():
     assert by_category == {}
 
 
+def test_class_relatives_skips_listings_with_zero_current_price():
+    # Regression test: Pingo Doce listing 299 ("Pera Packham's Nossa Fruta e
+    # Legumes") intermittently recorded price=0/regular_price=0 from
+    # 2026-07-25 onward - a relative of 0.0 reached jevons_class_index's
+    # math.log(r) and crashed the entire compute run for every country
+    # downstream of Portugal, for weeks. base_price was already guarded;
+    # current_price wasn't.
+    basket_rows = [_basket_row(1)]
+    snapshots_by_listing = {
+        1: [
+            {"scrape_date": "2026-07-01", "price": 1.89, "regular_price": 1.89},
+            {"scrape_date": "2026-07-02", "price": 0, "regular_price": 0},
+        ]
+    }
+
+    by_category, n_covered = class_relatives(
+        basket_rows, snapshots_by_listing, as_of_date="2026-07-02", price_field="price"
+    )
+
+    assert n_covered == 0
+    assert by_category == {}
+
+
 def test_class_relatives_skips_explicitly_listed_corrupted_snapshots():
     # Regression test for the Lidl France wine bug (scraper/lidl_france.py,
     # fixed 2026-07-23): a page-wide (not tile-scoped) stroke-price locator

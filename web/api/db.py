@@ -33,7 +33,22 @@ ACTIVE_STORES_BY_COUNTRY: dict[str, list[str]] = {
     # kept out of this list so /health stops reporting its frozen last-ever
     # scrape_runs row as a permanent "failed" store.
     "FR": ["auchan-fr-paris", "auchan-fr-marseille"],
-    "US": ["wegmans-us-medford", "wegmans-us-nyc", "wegmans-us-fairfax", "wegmans-us-chapelhill"],
+    # walmart-us: not a scraper.run.py-driven store (no scraper/walmart_us.py,
+    # robots_checked_at stays null) - its price_snapshots come from a
+    # separately-sourced dataset the user loads directly into Supabase, not
+    # this project's own anti-bot-compliant pipeline. Already blended into
+    # the US 'overall'/'category' compute in metrics/compute.py regardless
+    # of this list (that function has no active-store filter); this only
+    # controls whether it's *visible* here - added 2026-08-22 per explicit
+    # request, for this tool's current small/trusted audience, to get
+    # visibility into its coverage and category-level data quality.
+    "US": [
+        "wegmans-us-medford",
+        "wegmans-us-nyc",
+        "wegmans-us-fairfax",
+        "wegmans-us-chapelhill",
+        "walmart-us",
+    ],
 }
 # Mirrors scraper/run.py's CATEGORY_CRAWLERS keys (this module can't import
 # that repo-root package — see the module docstring). Every store here is

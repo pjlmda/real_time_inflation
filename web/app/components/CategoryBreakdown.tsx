@@ -19,29 +19,29 @@ function CategoryBreakdown({
   );
 
   return (
-    <section className="rounded-lg border border-neutral-800 p-5">
+    <section className="rounded-xl border border-hairline bg-surface p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-medium">ECOICOP breakdown</h2>
-          <p className="mt-1 text-sm text-neutral-400">
+          <h2 className="text-base font-medium text-ink">ECOICOP breakdown</h2>
+          <p className="mt-1 text-sm text-ink2">
             Fixed-basket index per category, weighted by HICP importance.
           </p>
         </div>
         <a
           href={`/personalize?country=${country}`}
-          className="shrink-0 rounded border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800"
+          className="shrink-0 rounded-md border border-chart1/40 bg-chart1/10 px-3 py-1.5 text-sm font-medium text-chart1 transition-colors hover:bg-chart1/20"
         >
           Personalize my rate
         </a>
       </div>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-neutral-500">
+          <thead className="text-left text-ink3">
             <tr>
               <th className="py-1 pr-4 font-normal">Category</th>
               <th className="py-1 pr-4 font-normal">HICP weight</th>
               <th
-                className="py-1 pr-4 font-normal underline decoration-dotted decoration-neutral-600 cursor-help"
+                className="py-1 pr-4 font-normal underline decoration-dotted decoration-ink3/60 cursor-help"
                 title="Index = 100 on the day each category first entered the tracker (categories were added incrementally, so the base date differs per row — hover a value to see its exact base date)."
               >
                 Index
@@ -53,13 +53,13 @@ function CategoryBreakdown({
             {sorted.map((cat) => {
               const metric = cat.latest["fixed_basket_headline"];
               return (
-                <tr key={cat.ecoicop2_code} className="border-t border-neutral-800">
-                  <td className="py-2 pr-4">{cat.name_en}</td>
-                  <td className="py-2 pr-4 tabular-nums text-neutral-400">
+                <tr key={cat.ecoicop2_code} className="border-t border-hairline">
+                  <td className="py-2 pr-4 text-ink">{cat.name_en}</td>
+                  <td className="py-2 pr-4 tabular-nums text-ink2">
                     {formatNumber(cat.hicp_weight)}
                   </td>
                   <td
-                    className="py-2 pr-4 tabular-nums cursor-help"
+                    className="py-2 pr-4 tabular-nums text-ink cursor-help"
                     title={
                       metric && cat.base_date
                         ? `100 = index value on ${cat.base_date}, the day this category was first tracked`
@@ -68,13 +68,13 @@ function CategoryBreakdown({
                   >
                     {formatNumber(metric?.index_value)}
                     {metric?.low_confidence && (
-                      <span className="ml-1 rounded bg-yellow-900 px-1 text-xs text-yellow-300">low confidence</span>
+                      <span className="ml-1 rounded bg-warn/15 px-1 text-xs text-warn">low confidence</span>
                     )}
                   </td>
                   <td
                     className={`py-2 pr-4 tabular-nums ${rateColorClass(metric?.inflation_rate, {
-                      unknown: "text-neutral-500",
-                      neutral: "",
+                      unknown: "text-ink3",
+                      neutral: "text-ink2",
                     })}`}
                   >
                     {formatPercent(metric?.inflation_rate)}

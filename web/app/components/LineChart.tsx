@@ -53,7 +53,7 @@ export default function LineChart({
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   if (dates.length < 2) {
-    return <p className="text-sm text-neutral-500">{emptyMessage}</p>;
+    return <p className="text-sm text-ink3">{emptyMessage}</p>;
   }
 
   const allValues = series.flatMap((s) => s.values).filter((v): v is number => v !== null);
@@ -100,15 +100,9 @@ export default function LineChart({
           const value = max - t * (max - min);
           return (
             <g key={t}>
-              <line
-                x1={PADDING.left}
-                x2={WIDTH - PADDING.right}
-                y1={y}
-                y2={y}
-                stroke="#2a2a2a"
-                strokeDasharray="3 3"
-              />
-              <text x={PADDING.left - 6} y={y + 4} textAnchor="end" fontSize={11} fill="#999">
+              {/* Hairline, solid — never dashed, kept recessive against the data. */}
+              <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={y} y2={y} stroke="#2c2c2a" strokeWidth={1} />
+              <text x={PADDING.left - 6} y={y + 4} textAnchor="end" fontSize={11} fill="#898781">
                 {value.toFixed(decimals)}
               </text>
             </g>
@@ -120,7 +114,9 @@ export default function LineChart({
             points={toPolyline(seriesPoints[si])}
             fill="none"
             stroke={s.color}
-            strokeWidth={si === 0 ? 1.5 : 2.5}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         ))}
         {hoverX !== null && (
@@ -129,46 +125,52 @@ export default function LineChart({
             x2={hoverX}
             y1={PADDING.top}
             y2={HEIGHT - PADDING.bottom}
-            stroke="#666"
+            stroke="#898781"
             strokeWidth={1}
           />
         )}
         {hoverIndex !== null &&
           series.map((s, si) => {
             const p = seriesPoints[si][hoverIndex];
-            return p ? <circle key={s.label} cx={p[0]} cy={p[1]} r={3.5} fill={s.color} /> : null;
+            // r=4 (8px) with a surface-color ring so the marker stays legible
+            // where two series cross or overlap.
+            return p ? (
+              <circle key={s.label} cx={p[0]} cy={p[1]} r={4} fill={s.color} stroke="#1a1a19" strokeWidth={2} />
+            ) : null;
           })}
-        <text x={PADDING.left} y={HEIGHT - 4} fontSize={11} fill="#999">
+        <text x={PADDING.left} y={HEIGHT - 4} fontSize={11} fill="#898781">
           {dates[0]}
         </text>
-        <text x={WIDTH - PADDING.right} y={HEIGHT - 4} textAnchor="end" fontSize={11} fill="#999">
+        <text x={WIDTH - PADDING.right} y={HEIGHT - 4} textAnchor="end" fontSize={11} fill="#898781">
           {dates[dates.length - 1]}
         </text>
       </svg>
       {hoverIndex !== null && tooltipLeftPct !== null && (
         <div
-          className="pointer-events-none absolute top-1 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs shadow-lg"
+          className="pointer-events-none absolute top-1 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-xs shadow-lg"
           style={{
             left: `${tooltipLeftPct}%`,
             transform: tooltipFlip ? "translateX(-100%)" : "translateX(0)",
             marginLeft: tooltipFlip ? -8 : 8,
           }}
         >
-          <div className="text-neutral-400">{dates[hoverIndex]}</div>
+          <div className="text-ink3">{dates[hoverIndex]}</div>
           {series.map((s) => {
             const v = s.values[hoverIndex];
             return (
-              <div key={s.label} style={{ color: s.color }}>
-                {s.label}: {v != null ? v.toFixed(decimals) : "—"}
+              <div key={s.label} className="flex items-center gap-1.5 text-ink2">
+                {/* Identity rides the dot, not the text color — text stays a neutral ink token. */}
+                <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                {s.label}: <span className="tabular-nums text-ink">{v != null ? v.toFixed(decimals) : "—"}</span>
               </div>
             );
           })}
         </div>
       )}
-      <div className="mt-2 flex gap-4 text-xs text-neutral-400">
+      <div className="mt-2 flex gap-4 text-xs text-ink2">
         {series.map((s) => (
-          <span key={s.label}>
-            <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+          <span key={s.label} className="inline-flex items-center">
+            <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
             {s.label}
           </span>
         ))}

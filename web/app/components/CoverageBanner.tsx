@@ -18,24 +18,24 @@ function formatTime(iso: string | null): string {
 function CoverageBanner({ health }: { health: HealthResponse }) {
   return (
     <section
-      className={`rounded-lg border p-4 text-sm ${
-        health.healthy ? "border-green-900 bg-green-950/40" : "border-yellow-900 bg-yellow-950/40"
+      className={`rounded-xl border p-4 text-sm ${
+        health.healthy ? "border-good/30 bg-good/10" : "border-warn/30 bg-warn/10"
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-medium">
+        <span className={`font-medium ${health.healthy ? "text-good" : "text-warn"}`}>
           {health.healthy ? "All systems healthy" : "Some data may be stale or low-confidence"}
         </span>
-        <span className="text-neutral-400">
+        <span className="text-ink3">
           Metrics computed: {formatTime(health.compute.latest_computed_at)}
         </span>
       </div>
-      <div className="mt-2 flex flex-wrap gap-4 text-neutral-400">
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-ink2">
         {Object.entries(health.stores).map(([slug, modes]) => (
           <span key={slug}>
             {slug}: basket {modes.basket?.status ?? "—"} ({((modes.basket?.coverage ?? 0) * 100).toFixed(0)}%)
             {modes.basket?.blocked && (
-              <span className="ml-1 rounded bg-red-900 px-1 text-xs text-red-300">blocked</span>
+              <span className="ml-1 rounded bg-bad/20 px-1 text-xs text-bad">blocked</span>
             )}
           </span>
         ))}

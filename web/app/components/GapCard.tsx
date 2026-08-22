@@ -13,9 +13,9 @@ function GapCard({ latest }: { latest: LatestOverallResponse }) {
   const promoIntensity = gap < 0 ? Math.abs(gap) : 0;
 
   return (
-    <section className="rounded-lg border border-neutral-800 p-5">
-      <h2 className="text-lg font-medium">Headline vs. effective gap</h2>
-      <p className="mt-1 text-sm text-neutral-400">
+    <section className="rounded-xl border border-hairline bg-surface p-5 sm:p-6">
+      <h2 className="text-base font-medium text-ink">Headline vs. effective gap</h2>
+      <p className="mt-1 text-sm text-ink2">
         The gap between regular prices (headline) and what shoppers actually pay today
         (effective) is a signal of promo intensity.
       </p>
@@ -37,8 +37,8 @@ export default memo(GapCard);
 function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div>
-      <div className="text-xs text-neutral-500">{label}</div>
-      <div className={`text-xl font-medium tabular-nums ${highlight ? "text-green-400" : ""}`}>{value}</div>
+      <div className="text-xs text-ink3">{label}</div>
+      <div className={`text-xl font-medium tabular-nums ${highlight ? "text-good" : "text-ink"}`}>{value}</div>
     </div>
   );
 }

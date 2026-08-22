@@ -25,18 +25,19 @@ export function formatSignedPercent(value: number | null | undefined, decimals =
   return value != null ? `${formatSigned(value, decimals)}%` : EMPTY;
 }
 
-// text-red-400 (up) / text-green-400 (down) / neutral (flat) / unknown
-// (null) — the project's consistent "red = up, green = down" convention for
-// inflation rates and deltas. `neutral`/`unknown` are overridable since
-// different components use different placeholder shades.
+// text-bad (up) / text-good (down) / neutral (flat) / unknown (null) — the
+// project's consistent "red = up, green = down" convention for inflation
+// rates and deltas, using the reserved status palette (never the chart1/2
+// series colors). `neutral`/`unknown` are overridable since different
+// components use different placeholder shades.
 export function rateColorClass(
   value: number | null | undefined,
   options: { neutral?: string; unknown?: string } = {}
 ): string {
-  const neutral = options.neutral ?? "text-neutral-300";
-  const unknown = options.unknown ?? "text-neutral-400";
+  const neutral = options.neutral ?? "text-ink2";
+  const unknown = options.unknown ?? "text-ink3";
   if (value == null) return unknown;
-  if (value > 0) return "text-red-400";
-  if (value < 0) return "text-green-400";
+  if (value > 0) return "text-bad";
+  if (value < 0) return "text-good";
   return neutral;
 }

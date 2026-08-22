@@ -56,13 +56,13 @@ export default function Dashboard({
   const countryName = countries.find((c) => c.code === country)?.name;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 space-y-8">
-      <header className="flex items-start justify-between gap-4">
+    <main className="mx-auto max-w-5xl px-4 py-10 sm:py-14 space-y-6">
+      <header className="flex items-start justify-between gap-4 pb-2">
         <div>
-          <h1 className="text-2xl font-semibold">
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">
             {countryName ? `${countryName} Real-Time Inflation Tracker` : "Real-Time Inflation Tracker"}
           </h1>
-          <p className="text-sm text-neutral-400">
+          <p className="mt-1 text-sm text-ink2">
             Daily grocery &amp; fuel inflation, methodologically aligned with INE/Eurostat HICP.
           </p>
         </div>
@@ -75,12 +75,10 @@ export default function Dashboard({
 
       <GapCard latest={latest} />
 
-      <section className="rounded-lg border border-neutral-800 p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-medium">Index over time</h2>
-          <div className="flex gap-2 text-sm">
-            <FamilyToggle family={family} onChange={setFamily} />
-          </div>
+      <section className="rounded-xl border border-hairline bg-surface p-5 sm:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-base font-medium text-ink">Index over time</h2>
+          <FamilyToggle family={family} onChange={setFamily} />
         </div>
         <TimeSeriesChart data={activeSeries} />
       </section>
@@ -96,13 +94,13 @@ export default function Dashboard({
 
 function FamilyToggle({ family, onChange }: { family: Family; onChange: (f: Family) => void }) {
   return (
-    <div className="inline-flex overflow-hidden rounded border border-neutral-700">
+    <div className="inline-flex shrink-0 overflow-hidden rounded-md border border-hairline text-xs sm:text-sm">
       {(["fixed_basket", "category_avg"] as Family[]).map((f) => (
         <button
           key={f}
           onClick={() => onChange(f)}
-          className={`px-3 py-1 ${
-            family === f ? "bg-neutral-100 text-neutral-900" : "bg-transparent text-neutral-300"
+          className={`px-2.5 py-1 sm:px-3 transition-colors ${
+            family === f ? "bg-ink text-plane font-medium" : "bg-transparent text-ink2 hover:text-ink"
           }`}
         >
           {f === "fixed_basket" ? "Fixed basket" : "Category average"}

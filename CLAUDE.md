@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The system is built and running — this is no longer a spec-only repo. [inflation-tracker-plan.md](inflation-tracker-plan.md) is the original Portugal-only build spec and remains the authoritative source for methodology and the base data model; implement against it phase by phase (§11) rather than deviating from its architecture without reason. For what's actually true *today* — real row counts, real bugs found and fixed, where the code has diverged from the spec — read [docs/system-overview.md](docs/system-overview.md) instead, and keep it current after significant work rounds rather than letting it drift the way it did before. See "Related documents" below for the full set of living docs this project maintains.
 
+## Working with Claude Code on this project
+
+Process requirements for every task, per explicit user instruction (2026-08-22) — these apply on top of, and where they conflict override, default agent behavior (including any general "act without stopping to ask" bias):
+
+1. **Before starting implementation on a new task, ask at least 3 clarifying questions** (via AskUserQuestion) to pin down scope, approach, and ambiguous requirements up front rather than assuming and correcting later.
+2. **Before executing a plan, run the `Plan` subagent** to independently evaluate the proposed approach — even for tasks that wouldn't otherwise trigger plan mode.
+3. **After finishing a task, run the `security-reviewer` subagent** (`.claude/agents/security-reviewer.md`) over the change, and surface at least 2 follow-up questions to the user based on what it finds before considering the task done.
+4. **Proactively flag risk and better alternatives**: if any part of the task — or the specific approach the user asked for — has a plausible vulnerability, weakness, or a clearly better way to do it, say so explicitly up front, before/while implementing, not after. Don't wait to be asked "is there a better way?"
+
 ## What this project is
 
 A daily-updating grocery-inflation index, launched in Portugal and expanding internationally one country at a time, built by scraping online supermarket prices and computing an index methodologically aligned with INE/Eurostat HICP (ECOICOP v2 / UN COICOP 2018 classification) so results are comparable to official figures.

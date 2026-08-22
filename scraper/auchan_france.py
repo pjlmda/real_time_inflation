@@ -99,21 +99,50 @@ class AuchanFranceScraper(BaseScraper):
             # same persistent context (user_data_dir) — nothing to do.
             return
 
-        await show_price_btn.first.click(timeout=10_000)
-        await page.wait_for_timeout(1000)
-        await page.locator("input[placeholder*='postal']").first.fill(location["postcode"])
-        await page.wait_for_timeout(1000)
-        await page.get_by_text(location["suggestion_text"], exact=True).first.click(timeout=10_000)
-        await page.wait_for_timeout(1500)
-        await page.get_by_role("button", name="Drive").first.click(timeout=10_000)
-        await page.wait_for_timeout(1000)
-        # First plain-text "Choisir" button = nearest Drive point to the
-        # postcode just entered. An overlay transiently covers it, hence
-        # force=True (confirmed safe live — the click still lands correctly).
-        await page.locator("button").filter(has_text=re.compile(r"^Choisir$")).first.click(
-            timeout=10_000, force=True
-        )
-        await page.wait_for_timeout(1500)
+        # This flow started timing out in CI only from 2026-08-18 onward
+        # (escalating through 08-20/21/22), at the postal-code fill step,
+        # identically at both Paris and Marseille — while reproducing
+        # cleanly from a non-CI network. The bare TimeoutError alone can't
+        # distinguish "GitHub's IP gets a different consent/geo flow" from
+        # "the site changed" from "just slow that run" — capture what's
+        # actually on the page at the failure point so the next real CI
+        # failure leaves evidence instead of just a timeout message.
+        try:
+            await show_price_btn.first.click(timeout=10_000)
+            await page.wait_for_timeout(1000)
+            await page.locator("input[placeholder*='postal']").first.fill(location["postcode"])
+            await page.wait_for_timeout(1000)
+            await page.get_by_text(location["suggestion_text"], exact=True).first.click(timeout=10_000)
+            await page.wait_for_timeout(1500)
+            await page.get_by_role("button", name="Drive").first.click(timeout=10_000)
+            await page.wait_for_timeout(1000)
+            # First plain-text "Choisir" button = nearest Drive point to the
+            # postcode just entered. An overlay transiently covers it, hence
+            # force=True (confirmed safe live — the click still lands correctly).
+            await page.locator("button").filter(has_text=re.compile(r"^Choisir$")).first.click(
+                timeout=10_000, force=True
+            )
+            await page.wait_for_timeout(1500)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Drive-location bootstrap failed for {self.config.slug}: {exc} "
+                f"| {await self._diagnostic_snapshot(page)}"
+            ) from exc
+
+    @staticmethod
+    async def _diagnostic_snapshot(page: Page) -> str:
+        """Best-effort page-state capture for a bootstrap failure — never
+        lets a diagnostic-gathering error mask the original exception."""
+        try:
+            html = await page.content()
+            body_text = await page.locator("body").inner_text(timeout=5000)
+            snippet = " ".join(body_text.split())[:500]
+            return (
+                f"url={page.url} title={(await page.title())!r} "
+                f"block_markers_detected={detect_block(html)} body_snippet={snippet!r}"
+            )
+        except Exception as diag_exc:  # noqa: BLE001 - diagnostics are best-effort only
+            return f"(diagnostic snapshot itself failed: {diag_exc})"
 
     @staticmethod
     async def _dismiss_cookie_banner(page: Page) -> None:

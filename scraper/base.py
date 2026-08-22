@@ -86,57 +86,75 @@ class BaseScraper(ABC):
         attempted = ok = failed = 0
         error_reasons: list[str] = []
         blocked = False
+        setup_error: Exception | None = None
 
-        async with async_playwright() as playwright:
-            context = await self._build_context(playwright)
-            page = await context.new_page()
-            try:
-                for listing in listings:
-                    if listing.id in captured_today_ids:
-                        continue
-                    if not robots.allowed(listing.url):
-                        failed += 1
-                        error_reasons.append(f"listing {listing.id}: disallowed by robots.txt")
-                        continue
+        try:
+            async with async_playwright() as playwright:
+                context = await self._build_context(playwright)
+                page = await context.new_page()
+                try:
+                    for listing in listings:
+                        if listing.id in captured_today_ids:
+                            continue
+                        if not robots.allowed(listing.url):
+                            failed += 1
+                            error_reasons.append(f"listing {listing.id}: disallowed by robots.txt")
+                            continue
 
-                    attempted += 1
-                    try:
-                        # Suppressed below, not rewritten: ruff's B023 (loop-variable closure)
-                        # is a real general footgun, but doesn't apply here — with_backoff
-                        # calls this lambda synchronously within the same loop iteration,
-                        # never storing it for later, so `listing` can't have already advanced.
-                        scraped = await with_backoff(lambda: self.fetch_listing(page, listing))  # noqa: B023
-                        self.db.upsert_snapshot(listing.id, scraped)
-                        ok += 1
-                    except BlockDetected:
-                        failed += 1
-                        error_reasons.append(f"listing {listing.id}: block/CAPTCHA detected")
-                        blocked = True
-                        break
-                    except FetchFailed as exc:
-                        failed += 1
-                        error_reasons.append(f"listing {listing.id}: {exc}")
-                    except Exception as exc:  # noqa: BLE001 - an unexpected error (Playwright
-                        # timeout, DB write failure, etc.) shouldn't silently abort the whole run
-                        # past finish_run()/alerting the way an uncaught exception would — record
-                        # it and keep going, same as category_base.py already does per-category.
-                        failed += 1
-                        error_reasons.append(f"listing {listing.id}: unexpected error: {exc}")
+                        attempted += 1
+                        try:
+                            # Suppressed below, not rewritten: ruff's B023 (loop-variable closure)
+                            # is a real general footgun, but doesn't apply here — with_backoff
+                            # calls this lambda synchronously within the same loop iteration,
+                            # never storing it for later, so `listing` can't have already advanced.
+                            scraped = await with_backoff(lambda: self.fetch_listing(page, listing))  # noqa: B023
+                            self.db.upsert_snapshot(listing.id, scraped)
+                            ok += 1
+                        except BlockDetected:
+                            failed += 1
+                            error_reasons.append(f"listing {listing.id}: block/CAPTCHA detected")
+                            blocked = True
+                            break
+                        except FetchFailed as exc:
+                            failed += 1
+                            error_reasons.append(f"listing {listing.id}: {exc}")
+                        except Exception as exc:  # noqa: BLE001 - an unexpected error (Playwright
+                            # timeout, DB write failure, etc.) shouldn't silently abort the whole run
+                            # past finish_run()/alerting the way an uncaught exception would — record
+                            # it and keep going, same as category_base.py already does per-category.
+                            failed += 1
+                            error_reasons.append(f"listing {listing.id}: unexpected error: {exc}")
 
-                    await sleep_jitter(delay, max(delay, self.config.delay_seconds_max))
-            finally:
-                await context.close()
-                await self._teardown()
+                        await sleep_jitter(delay, max(delay, self.config.delay_seconds_max))
+                finally:
+                    await context.close()
+                    await self._teardown()
+        except Exception as exc:  # noqa: BLE001 - anything escaping context setup, the scrape
+            # loop's own finally, or teardown (e.g. AuchanFranceScraper's Drive-location
+            # bootstrap timing out) used to propagate straight out of run(), skipping
+            # finish_run() entirely and leaving start_run()'s "success" placeholder row
+            # (finished_at=null, listings_attempted=0) looking like nothing went wrong -
+            # a real incident this masked for days, visible only as a GitHub Actions
+            # failure with no matching scrape_runs status. Record it as a real failure
+            # instead, same as any other failure mode here.
+            setup_error = exc
+            error_reasons.append(f"run failed before/during scraping: {exc}")
 
-        coverage = (ok / attempted) if attempted else 1.0
-        if blocked:
+        if setup_error is not None:
             status = "failed"
+            coverage = 0.0
+        elif blocked:
+            status = "failed"
+            coverage = (ok / attempted) if attempted else 1.0
         elif failed == 0:
             status = "success"
+            coverage = (ok / attempted) if attempted else 1.0
         elif ok == 0:
             status = "failed"
+            coverage = (ok / attempted) if attempted else 1.0
         else:
             status = "partial"
+            coverage = (ok / attempted) if attempted else 1.0
 
         result = RunResult(
             run_id=run_id,
@@ -167,6 +185,8 @@ class BaseScraper(ABC):
 
         if db_error is not None:
             raise db_error
+        if setup_error is not None:
+            raise setup_error
 
         return result
 

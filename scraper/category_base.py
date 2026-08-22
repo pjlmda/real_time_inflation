@@ -98,39 +98,52 @@ class CategoryCrawlerBase(ABC):
             store_id, list(category_id_by_code.values())
         )
 
-        async with async_playwright() as playwright:
-            context = await self._build_context(playwright)
-            page = await context.new_page()
-            try:
-                for ecoicop2_code, cat_config in self.category_config.items():
-                    category_id = category_id_by_code[ecoicop2_code]
-                    if category_id in captured_today_ids:
-                        continue
-
-                    attempted += 1
-                    try:
-                        prices = await self.fetch_category_prices(
-                            page, robots, delay_range, ecoicop2_code, cat_config
-                        )
-                        if len(prices) < MIN_PRODUCTS_FOR_STATS:
-                            failed += 1
-                            error_reasons.append(
-                                f"{ecoicop2_code}: only {len(prices)} product(s) found"
-                            )
+        setup_error: Exception | None = None
+        try:
+            async with async_playwright() as playwright:
+                context = await self._build_context(playwright)
+                page = await context.new_page()
+                try:
+                    for ecoicop2_code, cat_config in self.category_config.items():
+                        category_id = category_id_by_code[ecoicop2_code]
+                        if category_id in captured_today_ids:
                             continue
-                        stats = _compute_stats(prices)
-                        self.db.upsert_category_observation(store_id, category_id, stats)
-                        ok += 1
-                    except Exception as exc:  # noqa: BLE001
-                        # A single category failing (selector drift, transient
-                        # error) shouldn't abort the rest of the crawl.
-                        failed += 1
-                        error_reasons.append(f"{ecoicop2_code}: {exc}")
-            finally:
-                await context.close()
 
-        coverage = (ok / attempted) if attempted else 1.0
-        status = "success" if failed == 0 else ("failed" if ok == 0 else "partial")
+                        attempted += 1
+                        try:
+                            prices = await self.fetch_category_prices(
+                                page, robots, delay_range, ecoicop2_code, cat_config
+                            )
+                            if len(prices) < MIN_PRODUCTS_FOR_STATS:
+                                failed += 1
+                                error_reasons.append(
+                                    f"{ecoicop2_code}: only {len(prices)} product(s) found"
+                                )
+                                continue
+                            stats = _compute_stats(prices)
+                            self.db.upsert_category_observation(store_id, category_id, stats)
+                            ok += 1
+                        except Exception as exc:  # noqa: BLE001
+                            # A single category failing (selector drift, transient
+                            # error) shouldn't abort the rest of the crawl.
+                            failed += 1
+                            error_reasons.append(f"{ecoicop2_code}: {exc}")
+                finally:
+                    await context.close()
+        except Exception as exc:  # noqa: BLE001 - anything escaping context setup or teardown
+            # used to propagate straight out of run(), skipping finish_run() entirely and
+            # leaving start_run()'s "success" placeholder row (finished_at=null,
+            # listings_attempted=0) looking like nothing went wrong - same fix as
+            # scraper/base.py's BaseScraper.run().
+            setup_error = exc
+            error_reasons.append(f"run failed before/during the crawl: {exc}")
+
+        if setup_error is not None:
+            status = "failed"
+            coverage = 0.0
+        else:
+            coverage = (ok / attempted) if attempted else 1.0
+            status = "success" if failed == 0 else ("failed" if ok == 0 else "partial")
 
         result = RunResult(
             run_id=run_id,
@@ -159,6 +172,8 @@ class CategoryCrawlerBase(ABC):
 
         if db_error is not None:
             raise db_error
+        if setup_error is not None:
+            raise setup_error
 
         return result
 

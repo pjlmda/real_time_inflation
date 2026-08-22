@@ -119,9 +119,16 @@ class _FakeNotifier:
 
 
 class _StubScraper(BaseScraper):
-    def __init__(self, *args, fetch_results: dict | None = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        fetch_results: dict | None = None,
+        build_context_error: Exception | None = None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self._fetch_results = fetch_results or {}
+        self._build_context_error = build_context_error
 
     async def fetch_listing(self, page, listing):
         result = self._fetch_results[listing.id]
@@ -130,6 +137,8 @@ class _StubScraper(BaseScraper):
         return result
 
     async def _build_context(self, playwright):
+        if self._build_context_error:
+            raise self._build_context_error
         return _FakeContext()
 
 
@@ -370,3 +379,35 @@ async def test_run_swallows_mark_alerted_failure(monkeypatch):
     assert result.status == "failed"
     assert len(notifier.messages) == 1
     assert db.alerted_run_id is None
+
+
+async def test_run_records_failed_status_when_build_context_raises(monkeypatch):
+    # Regression test: AuchanFranceScraper's Drive-location bootstrap
+    # (inside _build_context) started timing out in production. That
+    # exception used to propagate straight out of run(), skipping
+    # finish_run() entirely and leaving start_run()'s "success" placeholder
+    # row (finished_at=null, listings_attempted=0) looking like nothing went
+    # wrong - the real incident was visible only as a GitHub Actions failure,
+    # with no matching scrape_runs status. A crash here must now still
+    # produce a real failed result, get alerted, and still re-raise so the
+    # Action step itself keeps failing too.
+    monkeypatch.setattr(base_module, "RobotsChecker", lambda base_url, user_agent: _FakeRobots())
+    listings = [_make_listing(1)]
+    db = _FakeDb(listings=listings)
+    notifier = _FakeNotifier()
+    scraper = _StubScraper(
+        config=_make_config(),
+        db=db,
+        notifier=notifier,
+        build_context_error=RuntimeError("Drive location bootstrap timed out"),
+    )
+
+    with pytest.raises(RuntimeError, match="Drive location bootstrap timed out"):
+        await scraper.run(mode="basket")
+
+    assert db.finished is not None
+    assert db.finished.status == "failed"
+    assert db.finished.attempted == 0
+    assert db.finished.coverage == pytest.approx(0.0)
+    assert "run failed before/during scraping" in db.finished.error_summary
+    assert len(notifier.messages) == 1

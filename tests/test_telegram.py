@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from alerting.telegram import TelegramNotifier
+from alerting.telegram import TelegramNotifier, TelegramSendFailed
 
 RealAsyncClient = httpx.AsyncClient
 
@@ -50,5 +50,23 @@ async def test_send_raises_on_http_error_status(monkeypatch):
     _patch_transport(monkeypatch, handler)
 
     notifier = TelegramNotifier(token="TESTTOKEN", chat_id="42")
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(TelegramSendFailed):
         await notifier.send("hello")
+
+
+async def test_send_does_not_leak_token_on_http_error(monkeypatch):
+    # Real bug this guards: httpx.HTTPStatusError's default str() embeds
+    # the full request URL, which is https://api.telegram.org/bot<TOKEN>/
+    # sendMessage - a revoked/invalid token (401) or any other error must
+    # not surface that URL verbatim, since callers propagate this
+    # exception's message uncaught (no caller currently wraps notifier.send()).
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"ok": False, "description": "Unauthorized"})
+
+    _patch_transport(monkeypatch, handler)
+
+    notifier = TelegramNotifier(token="SUPERSECRETTOKEN", chat_id="42")
+    with pytest.raises(TelegramSendFailed) as exc_info:
+        await notifier.send("hello")
+
+    assert "SUPERSECRETTOKEN" not in str(exc_info.value)

@@ -211,14 +211,21 @@ class SupabaseReader:
         latest_computed_at = compute_resp.data[0]["computed_at"] if compute_resp.data else None
         compute_stale = _is_stale(latest_computed_at)
 
-        # fuel_prices is genuinely Portugal-only (see get_fuel_latest) - no
-        # staleness signal applies to any other country, not a missing filter.
-        latest_fetched_at = None
-        fuel_stale = False
-        if self.country == "PT":
-            fuel_resp = self.client.table("fuel_prices").select("fetched_at").order("fetched_at", desc=True).limit(1).execute()
-            latest_fetched_at = fuel_resp.data[0]["fetched_at"] if fuel_resp.data else None
-            fuel_stale = _is_stale(latest_fetched_at)
+        # fuel_prices now covers PT (DGEG) and US (EIA) - migration 0008.
+        # Staleness is checked per-country like compute staleness above; a
+        # country with no fuel data at all (e.g. FR) reports stale=False,
+        # not True - "never had fuel data" isn't the same signal as "fuel
+        # data went stale" (_is_stale(None) would otherwise return True).
+        fuel_resp = (
+            self.client.table("fuel_prices")
+            .select("fetched_at")
+            .eq("country", self.country)
+            .order("fetched_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        latest_fetched_at = fuel_resp.data[0]["fetched_at"] if fuel_resp.data else None
+        fuel_stale = _is_stale(latest_fetched_at) if latest_fetched_at else False
 
         return {
             "healthy": healthy and not compute_stale,
@@ -548,15 +555,21 @@ class SupabaseReader:
     # --- /fuel/latest ---
 
     def get_fuel_latest(self) -> list[dict]:
-        # fuel_prices has no country column at all (migration 0004, predates
-        # multi-country) — it's genuinely Portugal-only (DGEG, Portugal's own
-        # energy regulator), not a scoping gap to paper over. Empty result
-        # for any other country is the honest answer, not a missing filter.
-        if self.country != "PT":
-            return []
+        # fuel_prices now covers PT (DGEG, national-only) and US (EIA,
+        # national + 5 PADD regions) - migration 0008. This endpoint
+        # surfaces only each country's NATIONAL-region row for now,
+        # matching FuelPanel.tsx's current "one tile per fuel type" shape;
+        # PADD-regional rows are stored but not yet surfaced by any
+        # endpoint - a deliberate first-pass scope, not an oversight. The
+        # region filter also guards against a real bug: without it,
+        # PADD-regional rows would land in the same per-fuel-type history
+        # list as the national row and corrupt the latest/week_ago
+        # computation below (which assumes one row per fuel_type per day).
         rows = (
             self.client.table("fuel_prices")
             .select("fuel_type, scrape_date, price, unit")
+            .eq("country", self.country)
+            .eq("region", "NATIONAL")
             .order("scrape_date", desc=True)
             .execute()
             .data

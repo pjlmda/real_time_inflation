@@ -48,6 +48,18 @@ FUEL_TYPES = {
     "lpg_auto": "1120",  # GPL Auto
 }
 
+# DGEG's Portuguese unit label -> our EUR/<unit> suffix. Moved here from
+# fuel/db.py (migration 0008) so the shared writer stops hardcoding an
+# "EUR/" prefix that would be wrong for any non-PT source (e.g. fuel/eia.py's
+# USD/gal rows) - each source module now owns normalizing its own output.
+UNIT_ABBREV_MAP = {"litro": "L", "kg": "kg", "m3": "m3"}
+
+
+def format_unit(raw_unit: str) -> str:
+    """DGEG's Portuguese unit label -> this project's 'EUR/<unit>' convention."""
+    abbrev = UNIT_ABBREV_MAP.get(raw_unit.lower(), raw_unit)
+    return f"EUR/{abbrev}"
+
 # Each date's data row, e.g.:
 # <tr id="rowTipo2026-07-04"><td></td><td>Gasolina simples 95 </td>
 #   <td>1,873 €</td><td>litro</td><td>1650</td></tr>

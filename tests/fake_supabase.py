@@ -4,10 +4,11 @@ from __future__ import annotations
 
 
 class FakeQuery:
-    def __init__(self, table: "FakeTable", op: str, payload=None):
+    def __init__(self, table: "FakeTable", op: str, payload=None, on_conflict=None):
         self.table = table
         self.op = op
         self.payload = payload
+        self.on_conflict = on_conflict
         self.filters: list[tuple[str, str, object]] = []
 
     def eq(self, col, val):
@@ -73,7 +74,7 @@ class FakeTable:
         return FakeQuery(self, "insert", payload)
 
     def upsert(self, payload, on_conflict=None):
-        return FakeQuery(self, "upsert", payload)
+        return FakeQuery(self, "upsert", payload, on_conflict=on_conflict)
 
     def update(self, payload):
         return FakeQuery(self, "update", payload)

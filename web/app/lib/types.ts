@@ -46,7 +46,7 @@ export interface StoreRow {
 }
 
 export interface FuelRow {
-  fuel_type: "gasoline_95" | "diesel" | "lpg_auto";
+  fuel_type: "gasoline_95" | "diesel" | "lpg_auto" | "gasoline_regular";
   scrape_date: string;
   price: number;
   unit: string;

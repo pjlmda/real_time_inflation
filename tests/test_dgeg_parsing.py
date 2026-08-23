@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fuel.dgeg import parse_price_table
+from fuel.dgeg import format_unit, parse_price_table
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -24,3 +24,15 @@ def test_parse_price_table_extracts_rows_most_recent_first():
 
 def test_parse_price_table_returns_empty_list_when_no_rows():
     assert parse_price_table("<html><body>no data</body></html>") == []
+
+
+def test_format_unit_maps_known_unit_abbreviation():
+    assert format_unit("litro") == "EUR/L"
+
+
+def test_format_unit_passes_through_unrecognized_unit():
+    assert format_unit("gallon") == "EUR/gallon"
+
+
+def test_format_unit_lookup_is_case_insensitive():
+    assert format_unit("KG") == "EUR/kg"

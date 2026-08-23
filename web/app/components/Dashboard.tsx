@@ -87,7 +87,7 @@ export default function Dashboard({
 
       <StoreComparison stores={stores} />
 
-      <FuelPanel fuel={fuel} />
+      <FuelPanel fuel={fuel} country={country} />
     </main>
   );
 }

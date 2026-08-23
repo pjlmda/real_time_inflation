@@ -1,23 +1,33 @@
-"""Supabase writer for `fuel_prices` (Part C — first prototype).
+"""Supabase writer for `fuel_prices` (migration 0008 — multi-source/
+multi-country). Kept separate from `scraper.db.SupabaseWriter` — that
+class's whole shape (store_id, listing idempotency, scrape_runs
+lifecycle) is grocery-specific and doesn't apply to a fuel average with
+no store/product concept.
 
-Kept separate from `scraper.db.SupabaseWriter` — that class's whole shape
-(store_id, listing idempotency, scrape_runs lifecycle) is grocery-specific
-and doesn't apply to a national fuel average with no store/product concept.
+Deliberately does no currency/unit formatting of its own — each source
+module owns normalizing its own raw output into the shared row shape
+(fuel/dgeg.py's DGEG-label mapping via format_unit(), fuel/eia.py's
+$/GAL normalization) before calling this, since the "right" unit differs
+per source and a shared writer can't guess it. Previously this hardcoded
+an 'EUR/' prefix unconditionally, which would have silently mislabeled
+every US row's unit as EUR even though the price is USD.
 """
 from __future__ import annotations
 
-# DGEG's Portuguese unit label -> our EUR/<unit> suffix.
-UNIT_ABBREV_MAP = {"litro": "L", "kg": "kg", "m3": "m3"}
 
-
-def upsert_fuel_price(client, fuel_type: str, row: dict) -> None:
-    unit = UNIT_ABBREV_MAP.get(row["unit"].lower(), row["unit"])
+def upsert_fuel_price(
+    client, fuel_type: str, row: dict, *, country: str, source: str, region: str = "NATIONAL"
+) -> None:
     payload = {
         "fuel_type": fuel_type,
         "scrape_date": row["date"],
         "price": row["price"],
-        "unit": f"EUR/{unit}",
-        "source": "dgeg_national_average",
+        "unit": row["unit"],
+        "country": country,
+        "region": region,
+        "source": source,
         "raw_payload": row,
     }
-    client.table("fuel_prices").upsert(payload, on_conflict="fuel_type,scrape_date").execute()
+    client.table("fuel_prices").upsert(
+        payload, on_conflict="fuel_type,scrape_date,country,region"
+    ).execute()

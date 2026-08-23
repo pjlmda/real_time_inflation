@@ -408,3 +408,55 @@ here.
 Basket now at 220 products / 437 listings total (up from 162/205 before
 Wegmans, 263 before the multi-location rebuild, 379 before the fourth
 location).
+
+## Dead-listing replacement round, 2026-08-23
+
+Five confirmed-dead listings replaced, using a new checked-in, reusable
+script (`seed/replace_listing.py`) rather than the ad hoc-against-
+production approach the only prior precedent (deactivating all 30 Lidl
+France listings, 2026-07-23) used. Two write shapes, chosen per item based
+on whether the retail unit itself changed — `metrics/compute.py`'s price
+relative is `price_t / price_0` on the **absolute** price column, not
+price-per-unit, so reusing a listing across a pack/brand/size change would
+inject a fake step-change (or, as found live during this round, silently
+*hide* a real one):
+
+- **Continente #16, Leite UHT Inteiro Mimosa 1L → Mimosa 6-pack**
+  (`leite-uht-inteiro-mimosa-mimosa-4362757`). Different pack size → new
+  `products` row (id 2218), new listing (id 2837), old listing deactivated.
+  Confirmed live: same €1.19/L unit price as the dead single-carton
+  listing. **Does not touch `products.id=16`** — that row is shared with a
+  still-live Pingo Doce listing (id 38); only Continente's own listing 16
+  was ever touched.
+- **Pingo Doce #307, Alface Iceberg Embalada → re-issued SKU.** Originally
+  assumed to be a literal same-product SKU reissue (planned as an
+  in-place URL update, preserving price history). Live re-verification
+  this round found the URL 301-redirects to a renamed product ("Salada
+  Iceberg Embalada," description "SALADA ICEBE 300G PD") that's genuinely
+  smaller than the dead listing's 400g pack — a real ~25% shrink, not a
+  pure reissue. Went through the insert-shape path instead (new product id
+  2219, new listing id 2838): reusing the old listing would have made that
+  real per-unit price increase read as zero change in the index.
+- **Auchan PT #300, Pera Rocha → Pera Morettinni** (different variety,
+  `pera-morettinni-auchan-kg/3356399`, EAN `2886222000008`) — new product
+  id 2220, new listing id 2839.
+- **Auchan PT #308, Alface Iceberg (loose, kg) → Auchan 200g fixed pack**
+  (`alface-iceberg-auchan-200-g/3799843`, EAN `5601002125279`) — new
+  product id 2221, new listing id 2840.
+- **Wegmans Rotini (dead SKU 48985) → Barilla Rotini** (SKU `531336`, UPC
+  `00076808280982`, live-confirmed sold at all 4 tracked locations,
+  $1.59–$1.99). Real finding not in the original research: the dead
+  `rotini_wegmans_us` product was shared across all four Wegmans
+  locations — 4 dead listings, not 1. New product id 2222, four new
+  listings (medford/nyc/fairfax/chapelhill), all four old listings
+  deactivated.
+
+All 5 replacement listings ran for real via a manual
+`python -m scraper.run --store <slug> --mode basket` per affected store
+and landed real, sane prices the same day. `seed/replace_listing.py` is
+meant to be reused/extended for future replacement rounds (edit and re-run
+its `main()`), not deleted after this one — a security review of its first
+real run added a target-store check to `deactivate_listing()` (refuses to
+deactivate a listing that doesn't actually belong to the store you meant,
+rather than silently succeeding on a typo'd id) before it's trusted for
+the next round.

@@ -521,3 +521,84 @@ Not yet done: `category_weights` has no US rows (BLS quota pending reset —
 see §7), so `compute.yml`'s `metrics/compute.py` run will produce
 `price_snapshots` rows for the US on every scheduled scrape but no
 `inflation_metrics` rows until the weights sync succeeds at least once.
+
+## 11. Fuel tracker — EIA, weekly, national + PADD regional — 2026-08-23
+
+The US gets the same fuel-price capability Portugal has had since the
+Part C prototype (`fuel/dgeg.py`), sourced from **EIA (U.S. Energy
+Information Administration)** rather than a same-cadence-as-DGEG daily
+source: AAA (`gasprices.aaa.com`) was live-checked and rejected — technically
+scrapable (permissive `robots.txt`, price rendered in plain server HTML,
+no bot-mitigation tier this project has confirmed elsewhere) but its data
+is OPIS-sourced (a commercial vendor) with no explicit free-reuse
+statement found on the page, a materially weaker legal footing than
+DGEG's explicit non-commercial-use grant. EIA is official, free, and
+weekly (not daily) — this project tracks that native cadence rather than
+forcing a daily number a weaker source might offer.
+
+**Schema** (migration `0008_us_fuel_prices.sql`): `fuel_prices` previously
+had no `country` column at all and a Postgres CHECK constraint hardcoded
+to PT's 3 DGEG fuel-type slugs — the same class of PT-hardcoding bug this
+project has hit before (`stores.country`, `inflation_metrics`
+uniqueness). Extended in place (mirroring migration 0007's pattern), not
+forked into a separate table — every other multi-country table in this
+schema used the same in-place approach. Added `country` and a `region`
+column (`'NATIONAL'` sentinel, or a PADD code — deliberately not `NULL`,
+since Postgres unique constraints treat every `NULL` as distinct,
+which would have broken upsert idempotency), widened the `fuel_type`
+CHECK constraint to add `gasoline_regular` (US's AKI-graded regular
+unleaded, not folded into PT's RON-graded `gasoline_95` — different
+grading systems, no clean equivalent, same reasoning that excludes
+LPG-auto from the US's scope entirely), and replaced the 2-column unique
+constraint with `(fuel_type, scrape_date, country, region)`.
+
+**Fetcher** (`fuel/eia.py`): follows `weights/bls.py`'s shape (plain sync
+`httpx`, pure `parse_response()`, an explicit `EiaRequestFailed`
+exception on a declined/misconfigured request) rather than
+`fuel/dgeg.py`'s Playwright-browser-automation style, since EIA's Open
+Data API v2 (`api.eia.gov/v2/petroleum/pri/gnd/`) is a real JSON REST
+endpoint. Unlike BLS's optional key, EIA requires a registered
+`EIA_API_KEY` for every request (no anonymous tier) — register free at
+https://www.eia.gov/opendata/register.php. Product/PADD facet codes
+(`EPMR`=regular gasoline, `EPD2D`=diesel, `NUS`=national, `R10`–`R50`=PADD
+1–5) were a hypothesis carried over from EIA's legacy series-ID naming
+convention, then **confirmed live** against EIA's own facet-metadata
+endpoints (`GET .../facet/duoarea/`, `GET .../facet/product/`) once a key
+was available — both matched exactly, no code changes needed.
+
+**Verified end-to-end, 2026-08-23**: a dry run (`fetch_all_latest_prices()`
+called standalone, zero DB writes) returned 12 sane rows (2 fuel types ×
+6 regions, $3.62–$5.09/gal gasoline, $5.24–$6.20/gal diesel, PADD5/West
+Coast highest in both — matches real-world regional patterns) before any
+write was attempted. The real write (`python -m fuel.run --source eia`)
+landed all 12 rows with `country='US'`, correct `region`, `unit='USD/gal'`;
+the existing 150 PT rows were unaffected (spot-checked via
+`select count(*) from fuel_prices where country != 'PT' or region !=
+'NATIONAL'` → 0, immediately after the migration and again after the
+write). Two hardcoded PT-only gates in `web/api/db.py`
+(`get_fuel_latest()`, `get_health()`) were replaced with real
+`.eq("country", ...)` filters — `get_fuel_latest()` also needed a new
+`.eq("region", "NATIONAL")` filter, a real bug the schema change would
+otherwise have introduced (PADD rows would have landed in the same
+per-fuel-type history list as the national row and corrupted the
+latest/week-ago computation). Confirmed live: `GET
+/api/fuel/latest?country=US` returns exactly the 2 national rows (not the
+12); `GET /api/fuel/latest?country=PT` unchanged; the dashboard's Fuel
+panel renders correctly for both countries via the live `CountrySwitcher`
+with a country-specific caption, no console errors.
+
+`fuel/db.py`'s writer also had a real latent bug fixed along the way — it
+unconditionally prefixed every unit with `"EUR/"`, which would have
+mislabeled every US (USD) row's unit as EUR the moment a second source
+existed. Unit formatting now lives in each source module instead
+(`fuel/dgeg.py::format_unit()`, `fuel/eia.py`'s `$/GAL → USD/gal` map).
+
+**Not yet done, deliberately**: `.github/workflows/fuel.yml` still runs
+only `--source dgeg` on its schedule — `eia` is manual-run-only for now,
+matching this project's established convention for every new
+source/store (prove it via real runs against prod first, add to the
+scheduled matrix as a separate later commit). PADD-regional rows are
+written and stored but not yet surfaced by any API endpoint or dashboard
+component — `get_fuel_latest()` only returns each country's `NATIONAL`
+row today, the same "one tile per fuel type" shape `FuelPanel.tsx`
+already had.

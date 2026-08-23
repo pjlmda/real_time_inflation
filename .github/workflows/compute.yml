@@ -6,6 +6,9 @@ on:
     types: [completed]
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 concurrency:
   group: compute
   cancel-in-progress: false
@@ -17,9 +20,9 @@ jobs:
     # seconds; this is just a cap against a hung request or infinite retry.
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"

@@ -12,6 +12,9 @@ on:
     - cron: "0 10 * * *"
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 concurrency:
   group: fuel
   cancel-in-progress: false
@@ -19,25 +22,43 @@ concurrency:
 jobs:
   fuel:
     runs-on: ubuntu-latest
-    # A normal run (3 fuel types, one page) takes ~1-2 minutes; this caps a
-    # hung page.goto/select against DGEG's site well short of GitHub's
-    # 360-minute default.
+    # A normal run (3 fuel types, one page for dgeg; a couple JSON requests
+    # for eia) takes well under a minute; this caps a hung page.goto/select
+    # or a hung HTTP request well short of GitHub's 360-minute default.
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # `browser` marks whether this source needs Chromium installed —
+        # dgeg scrapes DGEG's site via Playwright; eia (fuel/eia.py) is a
+        # plain httpx call against EIA's JSON API and never touches a
+        # browser, so its leg skips the playwright-install step entirely.
+        include:
+          - source: dgeg
+            browser: true
+          - source: eia
+            browser: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
       - run: uv sync --frozen
 
-      - run: uv run playwright install --with-deps chromium
+      - if: matrix.browser
+        run: uv run playwright install --with-deps chromium
 
-      - run: uv run python -m fuel.run --source dgeg
+      - run: uv run python -m fuel.run --source ${{ matrix.source }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Only the eia leg (fuel/eia.py) ever reads this — the dgeg leg is
+          # Playwright-driven (the larger untrusted-input surface, scraping
+          # a real third-party page), so it never gets a credential it has
+          # no use for.
+          EIA_API_KEY: ${{ matrix.source == 'eia' && secrets.EIA_API_KEY || '' }}

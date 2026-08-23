@@ -15,6 +15,9 @@ on:
     - cron: "0 10 * * *"
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 concurrency:
   group: scrape
   cancel-in-progress: false
@@ -59,9 +62,9 @@ jobs:
           - store: wegmans-us-chapelhill
             category: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"

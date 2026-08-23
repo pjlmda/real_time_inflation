@@ -593,12 +593,17 @@ mislabeled every US (USD) row's unit as EUR the moment a second source
 existed. Unit formatting now lives in each source module instead
 (`fuel/dgeg.py::format_unit()`, `fuel/eia.py`'s `$/GAL → USD/gal` map).
 
-**Not yet done, deliberately**: `.github/workflows/fuel.yml` still runs
-only `--source dgeg` on its schedule — `eia` is manual-run-only for now,
-matching this project's established convention for every new
-source/store (prove it via real runs against prod first, add to the
-scheduled matrix as a separate later commit). PADD-regional rows are
-written and stored but not yet surfaced by any API endpoint or dashboard
-component — `get_fuel_latest()` only returns each country's `NATIONAL`
-row today, the same "one tile per fuel type" shape `FuelPanel.tsx`
-already had.
+**Done, 2026-08-23: `eia` added to `fuel.yml`'s scheduled matrix.** After
+one manually-verified production write, `.github/workflows/fuel.yml` now
+runs both `--source dgeg` and `--source eia` on its twice-daily schedule
+via a `strategy.matrix` (mirroring `scrape.yml`'s per-store matrix
+pattern), with a `browser: false` flag skipping the Playwright-install
+step for `eia`'s plain-httpx call — same-day retries at 06:00/10:00 UTC
+are harmless no-ops for `eia` most days, since EIA's own data only
+updates weekly. `EIA_API_KEY` added as a GitHub Actions repository
+secret alongside the existing Supabase/Telegram secrets.
+
+**Still not done**: PADD-regional rows are written and stored but not yet
+surfaced by any API endpoint or dashboard component — `get_fuel_latest()`
+only returns each country's `NATIONAL` row today, the same "one tile per
+fuel type" shape `FuelPanel.tsx` already had.

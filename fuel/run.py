@@ -17,13 +17,12 @@ import sys
 from dotenv import load_dotenv
 from supabase import create_client
 
-from alerting.base import Notifier
+from alerting.base import Notifier, safe_send
 from alerting.console import ConsoleNotifier
-from alerting.telegram import TelegramNotifier
+from alerting.telegram import TelegramNotifier, escape_markdown
 from fuel.db import upsert_fuel_price
 from fuel.dgeg import fetch_all_latest_prices as fetch_dgeg
 from fuel.dgeg import format_unit as format_dgeg_unit
-from fuel.eia import EiaRequestFailed
 from fuel.eia import fetch_all_latest_prices as fetch_eia
 
 # Per-source country + upsert `source` label + the fuel types a "complete"
@@ -74,13 +73,18 @@ async def _main(source: str) -> int:
 
     try:
         rows = await _fetch_rows(source)
-    except EiaRequestFailed as exc:
-        await notifier.send(f"*Fuel scrape failed* ({source})\n{exc}")
+    except Exception as exc:  # noqa: BLE001 - broadened from EiaRequestFailed alone:
+        # a Playwright timeout from fetch_dgeg(), or any other real fetch
+        # failure, must still reach Telegram - narrowly catching only the
+        # one exception type this module happens to raise itself would
+        # leave every other failure mode silently unalerted (the exact bug
+        # class this whole change set out to close).
+        await safe_send(notifier, f"*Fuel scrape failed* ({source})\n{escape_markdown(str(exc))}")
         print(f"WARNING: {exc}", file=sys.stderr)
         return 1
 
     if not rows:
-        await notifier.send(f"*Fuel scrape failed* ({source})\nNo fuel prices retrieved at all.")
+        await safe_send(notifier, f"*Fuel scrape failed* ({source})\nNo fuel prices retrieved at all.")
         print("WARNING: no fuel prices retrieved", file=sys.stderr)
         return 1
 
@@ -98,7 +102,7 @@ async def _main(source: str) -> int:
         except Exception as exc:  # noqa: BLE001 - one row's DB write failing shouldn't
             # skip the rest, or crash before this reaches Telegram the way an uncaught
             # exception would.
-            write_errors.append(f"{fuel_type}/{row['region']}: {exc}")
+            write_errors.append(f"{fuel_type}/{row['region']}: {escape_markdown(str(exc))}")
             print(f"WARNING: failed to write {fuel_type}/{row['region']}: {exc}", file=sys.stderr)
 
     # Missing fuel types (site down, selector drift, API drift) or a DB
@@ -113,7 +117,7 @@ async def _main(source: str) -> int:
             lines.append(f"Missing fuel types: {', '.join(sorted(missing))}")
         if write_errors:
             lines.append("DB write failed for: " + "; ".join(write_errors))
-        await notifier.send(f"*Fuel scrape partial* ({source})\n" + "\n".join(lines))
+        await safe_send(notifier, f"*Fuel scrape partial* ({source})\n" + "\n".join(lines))
         if missing:
             print(f"WARNING: missing fuel types: {missing}", file=sys.stderr)
         return 1

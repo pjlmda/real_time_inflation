@@ -9,7 +9,8 @@ from pathlib import Path
 
 from playwright.async_api import BrowserContext
 
-from alerting.base import Notifier
+from alerting.base import Notifier, safe_send
+from alerting.telegram import escape_markdown
 from scraper.antibot import apply_stealth
 from scraper.db import SupabaseWriter
 from scraper.models import RunResult
@@ -64,15 +65,26 @@ async def send_run_alert(
     run_kind: str,
     db_error: Exception | None = None,
 ) -> None:
+    # error_summary/db_error can embed raw scraped page text (e.g. a
+    # Drive-bootstrap diagnostic snippet) or an arbitrary exception message
+    # - escaped before going into the message so it can't break Telegram's
+    # Markdown parser. The literal *bold* markers below are our own
+    # controlled formatting, left unescaped on purpose.
+    error_summary = escape_markdown(result.error_summary) if result.error_summary else ""
     message = (
         f"*{config_name}* {run_kind} {result.status.upper()}\n"
         f"attempted={result.attempted} ok={result.ok} failed={result.failed} "
         f"coverage={result.coverage:.0%}\n"
-        f"{result.error_summary or ''}"
+        f"{error_summary}"
     )
     if db_error is not None:
-        message += f"\n*DB write failed while finishing this run*: {db_error}"
-    await notifier.send(message)
+        message += f"\n*DB write failed while finishing this run*: {escape_markdown(str(db_error))}"
+
+    delivered = await safe_send(notifier, message)
+    if not delivered:
+        # Never mark "alerted" for a message that never actually reached
+        # Telegram - that would wrongly suppress a real retry next run.
+        return
     try:
         db.mark_alerted(result.run_id)
     except Exception:  # noqa: BLE001 - best-effort dedup flag; losing it just risks a

@@ -131,7 +131,12 @@ def fetch_all_latest_prices(*, timeout: float = 30.0) -> list[dict]:
             raise EiaRequestFailed(f"EIA API returned non-JSON response for product {product_code}") from None
 
         if "error" in payload:
-            raise EiaRequestFailed(f"EIA API declined the request: {payload['error']}")
+            # payload['error'] is EIA's own text, not ours to fully trust -
+            # defensively strip the key in case EIA ever echoes the
+            # offending request back (some APIs do), same reasoning as the
+            # httpx branches above.
+            error_text = str(payload["error"]).replace(api_key, "***")[:300]
+            raise EiaRequestFailed(f"EIA API declined the request: {error_text}")
         rows.extend(parse_response(payload, fuel_type))
     return rows
 

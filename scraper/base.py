@@ -8,7 +8,8 @@ from abc import ABC, abstractmethod
 
 from playwright.async_api import BrowserContext, Page, async_playwright
 
-from alerting.base import Notifier
+from alerting.base import Notifier, safe_send
+from alerting.telegram import escape_markdown
 from scraper.antibot import RobotsChecker, sleep_jitter, with_backoff
 from scraper.db import SupabaseWriter, is_same_day
 from scraper.models import BlockDetected, FetchFailed, Listing, RunResult, ScrapedPrice
@@ -77,9 +78,12 @@ class BaseScraper(ABC):
             # No run_id means finish_run()/mark_alerted() have nothing to update — still
             # get a Telegram signal out before re-raising, so GitHub Actions' native
             # failure email isn't the only trace of a DB outage at the start of a run.
-            await self.notifier.send(
+            # safe_send() never raises - if it did, that new exception would replace
+            # `exc` below instead of letting the real DB-unreachable error surface.
+            await safe_send(
+                self.notifier,
                 f"*{self.config.name}* {mode} run FAILED TO START — could not write to "
-                f"scrape_runs (database unreachable?): {exc}"
+                f"scrape_runs (database unreachable?): {escape_markdown(str(exc))}",
             )
             raise
 

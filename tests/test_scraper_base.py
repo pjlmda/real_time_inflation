@@ -111,10 +111,13 @@ class _FakeDb:
 
 
 class _FakeNotifier:
-    def __init__(self):
+    def __init__(self, send_error: Exception | None = None):
         self.messages: list[str] = []
+        self._send_error = send_error
 
     async def send(self, message):
+        if self._send_error:
+            raise self._send_error
         self.messages.append(message)
 
 
@@ -259,6 +262,28 @@ async def test_run_marks_partial_and_alerts_when_coverage_drops_below_threshold(
     assert db.alerted_run_id == 99
 
 
+async def test_run_does_not_mark_alerted_when_notifier_delivery_fails(monkeypatch):
+    # Real behavior improvement this guards: mark_alerted() (the
+    # scrape_runs.alerted dedup flag) must only be set on confirmed
+    # delivery - marking it after a failed send would wrongly suppress a
+    # real retry next run, since the alert never actually reached anyone.
+    monkeypatch.setattr(base_module, "RobotsChecker", lambda base_url, user_agent: _FakeRobots())
+    listings = [_make_listing(1), _make_listing(2)]
+    db = _FakeDb(listings=listings)
+    notifier = _FakeNotifier(send_error=RuntimeError("telegram rejected the message"))
+    scraper = _StubScraper(
+        config=_make_config(),
+        db=db,
+        notifier=notifier,
+        fetch_results={1: _scraped_price(), 2: FetchFailed("boom")},
+    )
+
+    result = await scraper.run(mode="basket")
+
+    assert result.status == "partial"
+    assert db.alerted_run_id is None
+
+
 async def test_run_stops_and_marks_failed_on_block_detected(monkeypatch):
     from scraper.models import BlockDetected
 
@@ -336,6 +361,26 @@ async def test_run_alerts_and_reraises_when_start_run_fails():
 
     assert len(notifier.messages) == 1
     assert "FAILED TO START" in notifier.messages[0]
+
+
+async def test_run_reraises_original_error_when_notifier_also_fails():
+    # Real bug this guards: notifier.send() used to be called unwrapped, so
+    # if it raised too (e.g. Telegram rejecting the message), that NEW
+    # exception replaced the original "db unreachable" error in the
+    # traceback - the real incident always got masked by whatever alerting
+    # problem happened to be present at the same time. safe_send() must
+    # swallow the notifier's own failure so the *original* exception is
+    # what actually propagates.
+    db = _FakeDb(listings=[], start_run_error=RuntimeError("db unreachable"))
+    notifier = _FakeNotifier(send_error=RuntimeError("telegram rejected the message"))
+    scraper = _StubScraper(config=_make_config(), db=db, notifier=notifier)
+
+    with pytest.raises(RuntimeError, match="db unreachable"):
+        await scraper.run(mode="basket")
+
+    # The notifier's own failure never reached notifier.messages (it raised
+    # before appending) - confirms safe_send() actually attempted delivery.
+    assert notifier.messages == []
 
 
 async def test_run_alerts_and_reraises_when_finish_run_fails(monkeypatch):

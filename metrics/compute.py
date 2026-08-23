@@ -391,9 +391,9 @@ def main() -> None:
     from dotenv import load_dotenv
     from supabase import create_client
 
-    from alerting.base import Notifier
+    from alerting.base import Notifier, safe_send
     from alerting.console import ConsoleNotifier
-    from alerting.telegram import TelegramNotifier
+    from alerting.telegram import TelegramNotifier, escape_markdown
     from metrics.category_compute import compute_category_avg_metrics_for_date
     from scraper.db import scrape_date_for_timezone
 
@@ -430,7 +430,10 @@ def main() -> None:
         rows = compute_metrics_for_date(client, as_of_date)
         category_rows = compute_category_avg_metrics_for_date(client, as_of_date)
     except Exception as exc:
-        asyncio.run(notifier.send(f"*Compute job failed* for {as_of_date}:\n{exc}"))
+        # safe_send() never raises - if it did, that new exception would
+        # replace `exc` below instead of letting the real compute error
+        # surface via the bare raise.
+        asyncio.run(safe_send(notifier, f"*Compute job failed* for {as_of_date}:\n{escape_markdown(str(exc))}"))
         raise
 
     print(
@@ -439,9 +442,10 @@ def main() -> None:
     )
     if not rows and not category_rows:
         asyncio.run(
-            notifier.send(
+            safe_send(
+                notifier,
                 f"*Compute job produced no metrics* for {as_of_date} — "
-                "check basket coverage and today's price_snapshots/category_observations."
+                "check basket coverage and today's price_snapshots/category_observations.",
             )
         )
         sys.exit(1)

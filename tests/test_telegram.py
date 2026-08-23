@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from alerting.telegram import TelegramNotifier, TelegramSendFailed
+from alerting.telegram import MAX_MESSAGE_LENGTH, TelegramNotifier, TelegramSendFailed, escape_markdown
 
 RealAsyncClient = httpx.AsyncClient
 
@@ -70,3 +70,70 @@ async def test_send_does_not_leak_token_on_http_error(monkeypatch):
         await notifier.send("hello")
 
     assert "SUPERSECRETTOKEN" not in str(exc_info.value)
+
+
+@pytest.mark.parametrize("char", ["_", "*", "`", "["])
+def test_escape_markdown_escapes_each_special_char(char):
+    assert escape_markdown(f"a{char}b") == f"a\\{char}b"
+
+
+def test_escape_markdown_escapes_mixed_string():
+    # Real-shape guard: raw scraped page text (e.g. a Drive-bootstrap
+    # diagnostic snippet) can contain any mix of these - all four must
+    # survive together, not just individually.
+    assert escape_markdown("price_per_kg *promo* `code` [link]") == (
+        "price\\_per\\_kg \\*promo\\* \\`code\\` \\[link]"
+    )
+
+
+def test_escape_markdown_leaves_plain_text_unchanged():
+    assert escape_markdown("nothing special here, just words and numbers 123") == (
+        "nothing special here, just words and numbers 123"
+    )
+
+
+def test_escape_markdown_escapes_backslash_before_the_character_it_precedes():
+    # Real bug this guards: escaping "_" before "\\" would leave a raw
+    # backslash-underscore pair (e.g. any Windows path) re-paired into a
+    # still-unescaped underscore. Backslash must go first so every
+    # original backslash is already doubled before the later passes run.
+    assert escape_markdown("C:\\Users\\_cache") == "C:\\\\Users\\\\\\_cache"
+
+
+async def test_send_truncates_messages_over_the_telegram_limit(monkeypatch):
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["text"] = json.loads(request.content)["text"]
+        return httpx.Response(200, json={"ok": True})
+
+    _patch_transport(monkeypatch, handler)
+
+    notifier = TelegramNotifier(token="TESTTOKEN", chat_id="42")
+    await notifier.send("x" * (MAX_MESSAGE_LENGTH + 500))
+
+    assert len(captured["text"]) == MAX_MESSAGE_LENGTH
+    assert captured["text"].endswith("…")
+
+
+async def test_send_truncation_does_not_leave_a_dangling_escape_backslash(monkeypatch):
+    # Real bug this guards: a naive slice can land exactly between a
+    # backslash escape_markdown() inserted and the character it was
+    # escaping, leaving an incomplete escape sequence that Telegram
+    # rejects with its own 400 - the same failure this truncation exists
+    # to prevent in the first place.
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["text"] = json.loads(request.content)["text"]
+        return httpx.Response(200, json={"ok": True})
+
+    _patch_transport(monkeypatch, handler)
+
+    notifier = TelegramNotifier(token="TESTTOKEN", chat_id="42")
+    # Engineered so the slice boundary (index MAX_MESSAGE_LENGTH - 1) lands
+    # exactly on a lone backslash.
+    forced = ("x" * (MAX_MESSAGE_LENGTH - 1)) + "\\_rest of a very long message" * 20
+    await notifier.send(forced)
+
+    assert not captured["text"].removesuffix("…").endswith("\\")

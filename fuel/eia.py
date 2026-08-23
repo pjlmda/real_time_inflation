@@ -73,11 +73,19 @@ EIA_UNIT_MAP = {"$/GAL": "USD/gal"}
 class EiaRequestFailed(Exception):
     """The EIA API call couldn't be trusted as real data — either
     EIA_API_KEY wasn't set (v2 requires one for every request, unlike
-    BLS's unauthenticated tier), an HTTP-level error was returned, or the
-    API responded 200 with its own error payload (bad key, invalid facet
-    value, etc). Raised explicitly, same reasoning as
-    weights.bls.BlsRequestFailed: a declined/misconfigured request must
-    be visibly a failure, never silently parsed as "zero rows today"."""
+    BLS's unauthenticated tier), an HTTP/network-level error was hit, the
+    response wasn't valid JSON, or the API responded 200 with its own
+    error payload (bad key, invalid facet value, etc). Raised explicitly,
+    same reasoning as weights.bls.BlsRequestFailed: a declined/
+    misconfigured request must be visibly a failure, never silently
+    parsed as "zero rows today". Messages here deliberately never
+    interpolate the raw exception/URL: api_key travels as a query param
+    (EIA's v2 API offers no other auth mechanism), and both httpx's
+    HTTPStatusError and its RequestError subclasses embed the full
+    request URL in their default string representation — printing one
+    verbatim (including in a traceback's chained "During handling of the
+    above exception" context, hence `raise ... from None` throughout)
+    would leak the key to a local terminal or, worse, a Telegram alert."""
 
 
 def fetch_all_latest_prices(*, timeout: float = 30.0) -> list[dict]:
@@ -106,9 +114,22 @@ def fetch_all_latest_prices(*, timeout: float = 30.0) -> list[dict]:
             "sort[0][direction]": "desc",
             "length": (len(PADD_REGIONS) + 1) * 2,  # a little slack past 1 row/duoarea
         }
-        resp = httpx.get(EIA_API_URL, params=params, timeout=timeout)
-        resp.raise_for_status()
-        payload = resp.json()
+        try:
+            resp = httpx.get(EIA_API_URL, params=params, timeout=timeout)
+            resp.raise_for_status()
+            payload = resp.json()
+        except httpx.HTTPStatusError as exc:
+            raise EiaRequestFailed(
+                f"EIA API returned HTTP {exc.response.status_code} for product {product_code} "
+                "(bad/revoked key and rate-limiting both surface this way)"
+            ) from None
+        except httpx.RequestError as exc:
+            raise EiaRequestFailed(
+                f"EIA API request failed for product {product_code}: {type(exc).__name__}"
+            ) from None
+        except ValueError:  # json.JSONDecodeError is a ValueError subclass
+            raise EiaRequestFailed(f"EIA API returned non-JSON response for product {product_code}") from None
+
         if "error" in payload:
             raise EiaRequestFailed(f"EIA API declined the request: {payload['error']}")
         rows.extend(parse_response(payload, fuel_type))
@@ -118,12 +139,16 @@ def fetch_all_latest_prices(*, timeout: float = 30.0) -> list[dict]:
 def parse_response(raw: dict, fuel_type: str) -> list[dict]:
     """Pure function: one EIA v2 JSON response (already scoped to one
     product) -> list of row dicts, one per recognized duoarea, keeping
-    only each duoarea's most-recent period (EIA returns desc-sorted, but
-    this dedupes defensively rather than assuming request-level sort
-    held)."""
+    only each duoarea's most-recent period. Compares `period` strings
+    explicitly (ISO dates sort correctly as strings) rather than trusting
+    response order — EIA is requested desc-sorted, but a sort-order
+    change or an out-of-order retry must not silently write a stale price
+    over a current one. Records missing `period`/`value` (a gap week) or
+    with an unrecognized `duoarea` are skipped, not guessed at or crashed
+    on — same "fail safe, never fail mislabeled" posture used elsewhere
+    in this project."""
     records = raw.get("response", {}).get("data", [])
-    seen_duoareas: set[str] = set()
-    results: list[dict] = []
+    latest_by_duoarea: dict[str, dict] = {}
     for rec in records:
         duoarea = rec.get("duoarea")
         if duoarea == NATIONAL_DUOAREA:
@@ -132,20 +157,24 @@ def parse_response(raw: dict, fuel_type: str) -> list[dict]:
             region = PADD_REGIONS[duoarea]
         else:
             continue  # unrecognized duoarea - fail safe, don't guess (see module docstring)
-        if duoarea in seen_duoareas:
-            continue  # already took this duoarea's latest (desc-sorted) row
-        seen_duoareas.add(duoarea)
+
+        period = rec.get("period")
+        raw_value = rec.get("value")
+        if period is None or raw_value is None:
+            continue  # incomplete record (e.g. a gap week) - skip, don't crash
+
+        existing = latest_by_duoarea.get(duoarea)
+        if existing is not None and existing["date"] >= period:
+            continue  # already have this duoarea's most-recent period
 
         raw_unit = rec.get("units", "")
         unit = EIA_UNIT_MAP.get(raw_unit, raw_unit)
-        results.append(
-            {
-                "fuel_type": fuel_type,
-                "region": region,
-                "date": rec["period"],
-                "price": float(rec["value"]),
-                "unit": unit,
-                "raw_payload": rec,
-            }
-        )
-    return results
+        latest_by_duoarea[duoarea] = {
+            "fuel_type": fuel_type,
+            "region": region,
+            "date": period,
+            "price": float(raw_value),
+            "unit": unit,
+            "raw_payload": rec,
+        }
+    return list(latest_by_duoarea.values())

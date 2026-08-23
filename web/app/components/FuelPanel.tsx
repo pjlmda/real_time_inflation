@@ -19,7 +19,9 @@ const CAPTIONS: Record<string, string> = {
 
 function FuelPanel({ fuel, country }: { fuel: FuelRow[]; country: string }) {
   if (fuel.length === 0) return null;
-  const caption = CAPTIONS[country] ?? "National average — not yet split by brand.";
+  const caption = Object.hasOwn(CAPTIONS, country)
+    ? CAPTIONS[country]
+    : "National average — not yet split by brand.";
 
   return (
     <section className="rounded-xl border border-hairline bg-surface p-5 sm:p-6">

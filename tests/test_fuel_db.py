@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fuel.db import upsert_fuel_price
 from tests.fake_supabase import FakeSupabaseClient
 
@@ -61,3 +63,21 @@ def test_upsert_fuel_price_on_conflict_target_includes_country_and_region():
 
     call = client.tables["fuel_prices"].calls[0]
     assert call.on_conflict == "fuel_type,scrape_date,country,region"
+
+
+def test_upsert_fuel_price_sets_fetched_at_explicitly_on_every_call():
+    # Real bug this guards: fetched_at previously relied on the column's
+    # insert-only `now()` default, which never fires again once a row
+    # exists - a weekly source re-upserting the same (fuel_type,
+    # scrape_date, country, region) row every run would falsely read as
+    # stale within days even on a perfectly healthy schedule, since the
+    # UPDATE path never touched fetched_at.
+    client = FakeSupabaseClient()
+    row = {"date": "2026-08-17", "price": 4.099, "unit": "USD/gal"}
+    before = datetime.now(timezone.utc)
+
+    upsert_fuel_price(client, "gasoline_regular", row, country="US", source="eia_weekly_retail")
+
+    call = client.tables["fuel_prices"].calls[0]
+    fetched_at = datetime.fromisoformat(call.payload["fetched_at"])
+    assert fetched_at >= before

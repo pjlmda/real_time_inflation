@@ -48,6 +48,36 @@ def test_parse_response_keeps_only_latest_period_per_duoarea():
     assert national_rows[0]["date"] == "2026-08-17"
 
 
+def test_parse_response_keeps_latest_period_even_when_response_order_is_ascending():
+    # Real bug this guards: the old implementation took the first-seen row
+    # per duoarea in list order, correct only because the fixture happens
+    # to be desc-sorted (matching the request's own sort params). Reversing
+    # the two NUS rows here must still keep 2026-08-17, not 2026-08-10 -
+    # proves the fix actually compares periods instead of trusting order.
+    fixture = _load_fixture()
+    fixture["response"]["data"] = list(reversed(fixture["response"]["data"]))
+
+    rows = parse_response(fixture, "gasoline_regular")
+
+    national_rows = [r for r in rows if r["region"] == "NATIONAL"]
+    assert len(national_rows) == 1
+    assert national_rows[0]["date"] == "2026-08-17"
+
+
+def test_parse_response_skips_records_with_null_value():
+    # EIA leaves `value` null for a gap week rather than omitting the row
+    # entirely - must be skipped (float(None) would otherwise crash the
+    # whole fetch for every product, not just the one gappy region).
+    fixture = _load_fixture()
+    fixture["response"]["data"].append(
+        {"period": "2026-08-17", "duoarea": "R40", "product": "EPMR", "value": None, "units": "$/GAL"}
+    )
+
+    rows = parse_response(fixture, "gasoline_regular")
+
+    assert all(r["region"] != "PADD4" for r in rows)
+
+
 def test_fetch_all_latest_prices_raises_when_api_key_missing(monkeypatch):
     monkeypatch.delenv("EIA_API_KEY", raising=False)
 
@@ -70,3 +100,41 @@ def test_fetch_all_latest_prices_raises_on_api_error_response(monkeypatch):
 
     with pytest.raises(EiaRequestFailed):
         fetch_all_latest_prices()
+
+
+def test_fetch_all_latest_prices_raises_on_http_error_without_leaking_key(monkeypatch):
+    # Real bug this guards: EIA returns 403 (not a 200+error body) for a
+    # bad/revoked key - the realistic failure mode, not the one the test
+    # above simulates. httpx.HTTPStatusError's default str() embeds the
+    # full request URL, which contains api_key= in cleartext - that
+    # message must never reach EiaRequestFailed (it flows into a Telegram
+    # alert via fuel/run.py).
+    secret_key = "SUPERSECRETKEY123"
+    monkeypatch.setenv("EIA_API_KEY", secret_key)
+
+    def fake_get(*args, **kwargs):
+        request = httpx.Request("GET", args[0] if args else kwargs.get("url"), params=kwargs.get("params"))
+        return httpx.Response(403, json={"error": "invalid api_key"}, request=request)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    with pytest.raises(EiaRequestFailed) as exc_info:
+        fetch_all_latest_prices()
+
+    assert secret_key not in str(exc_info.value)
+
+
+def test_fetch_all_latest_prices_raises_on_network_error_without_leaking_key(monkeypatch):
+    secret_key = "SUPERSECRETKEY123"
+    monkeypatch.setenv("EIA_API_KEY", secret_key)
+
+    def fake_get(*args, **kwargs):
+        request = httpx.Request("GET", args[0] if args else kwargs.get("url"), params=kwargs.get("params"))
+        raise httpx.ConnectError("connection refused", request=request)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    with pytest.raises(EiaRequestFailed) as exc_info:
+        fetch_all_latest_prices()
+
+    assert secret_key not in str(exc_info.value)

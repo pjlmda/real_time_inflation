@@ -1,5 +1,5 @@
 fastapi==0.139.0
 supabase==2.31.0
 uvicorn==0.51.0
-python-dotenv==1.2.2
+python-dotenv==1.2.4
 httpx==0.28.1
